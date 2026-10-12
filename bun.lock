@@ -5,7 +5,7 @@
     "": {
       "name": "classroom-review-game",
       "dependencies": {
-        "@teacherdotdev/question-commons": "0.2.0",
+        "@teacherdotdev/question-commons": "0.3.0",
         "canvas-confetti": "^1.9.4",
         "peerjs": "^1.5.5",
         "qrcode-generator": "^2.0.4",
@@ -90,7 +90,7 @@
 
     "@sveltejs/vite-plugin-svelte": ["@sveltejs/vite-plugin-svelte@7.3.1", "", { "dependencies": { "deepmerge": "^4.3.1", "magic-string": "^1.0.0", "obug": "^2.1.0", "vitefu": "^1.1.2" }, "peerDependencies": { "svelte": "^5.46.4", "vite": "^8.0.0-beta.7 || ^8.0.0" } }, "sha512-ZPsLN8B1e/En+Ak5s4V7srFDT532oS0qieLsQwu63NGKsS+iAjoO2Js1BochlHlglcU+Pt7WAO3C5Ee+4f6gVA=="],
 
-    "@teacherdotdev/question-commons": ["@teacherdotdev/question-commons@0.2.0", "", { "dependencies": { "jszip": "^3.10.1" } }, "sha512-k3/QG7aPmezyBI4kbo7I00rJSBm6ThSThqsCi6ApJ4RvJH/QTi7nIYvVdhW/vFNpj8xK7kJjdDUokk5+z6KYNg=="],
+    "@teacherdotdev/question-commons": ["@teacherdotdev/question-commons@0.3.0", "", { "dependencies": { "jszip": "^3.10.1", "unpdf": "1.8.1" } }, "sha512-Ptg9E8yNLTwmTojpwxuopb9DVegspnsc0VIDSwvzG0WjVYva9BWKcdJt4UJYFCQB6mkQN07ujInwYAj8E9ms2g=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
@@ -237,6 +237,8 @@
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
+
+    "unpdf": ["unpdf@1.8.1", "", { "peerDependencies": { "@napi-rs/canvas": "^0.1.69 || ^1.0.0" }, "optionalPeers": ["@napi-rs/canvas"] }, "sha512-xkURhy2SoGpOIH0a1gLHNkASPIQYonadDJs2AQwPEfUakafeD9EA1WTWWsaR++gfTCXJpV27W7tU1nXuk82UKQ=="],
 
     "util-deprecate": ["util-deprecate@1.0.2", "", {}, "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw=="],
 

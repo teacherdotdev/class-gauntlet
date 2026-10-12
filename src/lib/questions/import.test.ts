@@ -130,3 +130,11 @@ test('the AI instructions’ example pastes in cleanly', async () => {
   expect(errors).toEqual([]);
   expect(sets[0].questions.map((q) => q.correct)).toEqual([1, 1]);
 });
+
+test('a Google Forms printout says why its questions can’t come in: it never shows the answer key', async () => {
+  const bytes = new Uint8Array(await Bun.file(new URL('./fixtures/Grade 6 Math Check-in.pdf', import.meta.url)).arrayBuffer());
+  const { sets, errors } = await importQuestionFile({ name: 'Grade 6 Math Check-in.pdf', bytes });
+  expect(sets).toEqual([]);
+  expect(errors).toHaveLength(10);
+  expect(errors[0]).toContain('Google Forms printouts don’t show which answer is right');
+});

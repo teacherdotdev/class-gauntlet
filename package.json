@@ -13,7 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@teacherdotdev/question-commons": "0.2.0",
+    "@teacherdotdev/question-commons": "0.3.0",
     "canvas-confetti": "^1.9.4",
     "peerjs": "^1.5.5",
     "qrcode-generator": "^2.0.4"
