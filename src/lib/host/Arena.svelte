@@ -39,14 +39,11 @@
   );
   const everyone = $derived<CrowdMember[]>(view.roster.map((p) => ({ ...p })));
 
-  let landed = $state(false);
-  let lastOrdinal = 0;
-  $effect(() => {
-    if (phase === 'BETWEEN' && game && game.ordinal !== lastOrdinal) {
-      lastOrdinal = game.ordinal;
-      landed = false;
-    }
-  });
+  // The round the spotlight last landed in. With reduced motion it lands while
+  // it mounts, before any effect here could reset a plain flag, so each round
+  // is compared instead of reset.
+  let landedOrdinal = $state(0);
+  const landed = $derived(!!game && landedOrdinal === game.ordinal);
 
   let menuOpen = $state(false);
 
@@ -147,7 +144,7 @@
 
   {#if phase === 'BETWEEN' && game}
     <section class="intro">
-      <SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landed = true)} />
+      <SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landedOrdinal = game.ordinal)} />
       <div class="intro-text" class:show={landed}>
         <h1>{one} takes up the gauntlet!</h1>
         <p>

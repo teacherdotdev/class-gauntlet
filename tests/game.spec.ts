@@ -73,3 +73,24 @@ test('a full game over peer-to-peer: join, spotlight, answers, lifeline, reveal,
   await teacher.getByRole('button', { name: 'End the game' }).click();
   await expect(cy.getByText('Thanks for playing!')).toBeVisible();
 });
+
+// School laptops often have animations turned off, so the spotlight lands the
+// moment it appears; Begin must still show up, round after round.
+test('Begin appears when the teacher’s computer prefers reduced motion', async ({ browser }) => {
+  const teacher = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })).newPage();
+  await teacher.goto('/host');
+  await teacher.getByRole('button', { name: /Sample: Grade 7 Math Review/ }).click();
+  await expect(teacher.locator('.lobby .status')).toHaveCount(0, { timeout: 30_000 });
+  const pin = (await teacher.locator('.pin strong').textContent())!.replace(/\D/g, '');
+  await joinAs(browser, pin, 'Ana');
+  await joinAs(browser, pin, 'Ben');
+
+  await teacher.getByRole('button', { name: 'Start' }).click();
+  await expect(teacher.getByRole('button', { name: /Begin/ })).toBeVisible({ timeout: 10_000 });
+
+  // A second round lands again too.
+  await teacher.getByRole('button', { name: 'Menu' }).click();
+  await teacher.getByRole('button', { name: 'End this round' }).click();
+  await teacher.getByRole('button', { name: /Next round/ }).click();
+  await expect(teacher.getByRole('button', { name: /Begin/ })).toBeVisible({ timeout: 10_000 });
+});
