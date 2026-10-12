@@ -26,16 +26,16 @@ Inside a question the game moves itself along (timer, hand-off to the challenger
 | `/` | everyone | Start or join a game |
 | `/host` | teacher, on the projector | Pick a question set, then the lobby and the game itself; rules live behind the gear |
 | `/join?code=482913` | students | Join, answer, use lifelines (⚡) |
-| `/questions` | teacher | Question sets: write, import CSV / paste from a spreadsheet, download CSV, share by link |
+| `/questions` | teacher | Question sets: write, import a file / paste from a spreadsheet, download CSV, share by link |
 
 ## Custom questions
 
 Question sets are saved in the teacher's browser (local storage). Ways to get questions in:
 
 - **Write them** in the editor (`/questions/edit`): 2–4 choices per question and an optional explanation shown after the reveal.
-- **Import a CSV** or **paste cells from Google Sheets/Excel** with a header row `question, A, B, C, D, answer, explanation` (D and explanation optional; `answer` is a letter or the answer's text).
-- The original project's CSV format (`set title, subject, grade, question, choices, correct, explanation`, with `choices` a JSON array) imports too, one set per title.
-- **Blooket** spreadsheet imports work as well (its template's `Question Text, Answer 1–4, Correct Answer(s)` columns); when several answers are marked right, the first is kept.
+- **Import a file** or **paste cells from Google Sheets/Excel**. Files are read by [Question Commons](https://questioncommons.com) (`@teacherdotdev/question-commons`), so Kahoot and Blooket spreadsheets, Moodle (XML, GIFT, Aiken), Canvas and other QTI exports, Blackboard, Brightspace, Respondus, Word documents and our own CSVs all work. Each Question Bank in the file becomes a set.
+- The simplest spreadsheet has a header row `question, A, B, C, D, answer, explanation` (D and explanation optional; `answer` is a letter or the answer's text). The original project's CSV (`set title, subject, grade, question, choices, correct, explanation`, `choices` a JSON array) imports too, one set per title.
+- The game plays only multiple choice with **one** right answer, 2–4 text choices and no pictures. Every other question (true/false, several right answers, pictures, LaTeX math, more than four choices…) is left out, and the report says which and why. `src/lib/questions/import.ts` holds those rules.
 - **Copy AI instructions** (in the paste panel) copies a prompt that tells an AI chat to turn a worksheet or PDF into CSV in the expected format, ready to paste back in.
 - **Export all** downloads every set as one CSV (with set title, subject and grade on each row) that imports back as the same sets.
 - **Share links**: the set is compressed into the part of the link after `#`, which never reaches any server. Opening the link offers to add the set.
@@ -62,8 +62,8 @@ The teacher's tab must stay open during the game; closing it ends the room (a re
 ```bash
 bun install
 bun run dev        # http://localhost:8000
-bun test src       # rules, scoring, CSV
-bun run test:e2e   # plays a whole game between separate browsers via the real peer server
+bun test src       # rules, scoring, importing
+bun run test:e2e   # plays a whole game between separate browsers via the real peer server, and imports a Kahoot workbook
 bun run check
 bun run build
 ```

@@ -3,14 +3,14 @@
   import Brand from '#lib/components/Brand.svelte';
   import Footer from '#lib/components/Footer.svelte';
   import type { QuestionSet } from '#lib/game/types.ts';
-  import { aiInstructions, csvFileName, downloadCsv, exportCsv, importQuestions, templateCsv } from '#lib/questions/csv.ts';
+  import { aiInstructions, csvFileName, downloadCsv, exportCsv, templateCsv } from '#lib/questions/csv.ts';
+  import { importPasted, importQuestionFile, questionFileTypes, type ImportResult } from '#lib/questions/import.ts';
   import { sampleSetId } from '#lib/questions/sample.ts';
   import { readShared, shareLink } from '#lib/questions/share.ts';
   import { library } from '#lib/questions/store.svelte.ts';
   import { plural } from '#lib/words.ts';
 
   let importErrors = $state<string[]>([]);
-  let importNotes = $state<string[]>([]);
   let aiCopied = $state(false);
   let importMessage = $state('');
   let pasteOpen = $state(false);
@@ -33,14 +33,12 @@
     goto(`/questions/edit?id=${set.id}`);
   }
 
-  function runImport(text: string, fallbackTitle: string) {
-    const { sets, errors, notes } = importQuestions(text, fallbackTitle);
+  function showImport({ sets, errors, formatLabel }: ImportResult) {
     for (const set of sets) library.add(set);
     importErrors = errors;
-    importNotes = notes;
     const count = sets.reduce((t, set) => t + set.questions.length, 0);
     importMessage = sets.length
-      ? `Added ${plural(count, 'question')} in ${plural(sets.length, 'set')}.${errors.length ? ' Some rows were skipped:' : ''}`
+      ? `Read as ${formatLabel}: added ${plural(count, 'question')} in ${plural(sets.length, 'set')}.${errors.length ? ' These were left out:' : ''}`
       : '';
     if (sets.length) pasteOpen = false;
   }
@@ -48,12 +46,13 @@
   async function onFile(event: Event) {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
     if (!file) return;
-    if (file.size > 1_000_000) {
-      importErrors = ['That file is too big for a question set (over 1 MB).'];
+    fileInput.value = '';
+    if (file.size > 20_000_000) {
+      importMessage = '';
+      importErrors = ['That file is too big for a question set (over 20 MB).'];
       return;
     }
-    runImport(await file.text(), file.name.replace(/\.(csv|tsv|txt)$/i, ''));
-    fileInput.value = '';
+    showImport(await importQuestionFile({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }));
   }
 
   async function copyAiInstructions() {
@@ -104,10 +103,10 @@
     </div>
     <div class="row">
       <a class="btn-primary" href="/questions/edit?new=1">+ New set</a>
-      <button class="btn-ghost" onclick={() => fileInput.click()}>Import CSV</button>
+      <button class="btn-ghost" onclick={() => fileInput.click()} title="A spreadsheet, a Kahoot or Blooket export, a Word document, or a quiz from Canvas, Moodle, Blackboard and more">Import a file</button>
       <button class="btn-ghost" onclick={() => (pasteOpen = !pasteOpen)}>Paste from a spreadsheet</button>
       <button class="btn-ghost" onclick={exportAll} disabled={!library.sets.length} title="Download every set as one CSV file, to back up or move to another computer">Export all</button>
-      <input bind:this={fileInput} type="file" accept=".csv,.tsv,.txt,text/csv" hidden onchange={onFile} />
+      <input bind:this={fileInput} type="file" accept={questionFileTypes} hidden onchange={onFile} />
     </div>
   </div>
 
@@ -129,7 +128,7 @@
     <section class="panel paste">
       <p>
         Copy cells from Google Sheets or Excel, including a header row: <strong>question, A, B, C, D, answer, explanation</strong>.
-        D and explanation are optional; <em>answer</em> is the letter of the right choice. Blooket spreadsheets work too.
+        D and explanation are optional; <em>answer</em> is the letter of the right choice. Kahoot and Blooket spreadsheets work too.
         <button class="link" onclick={() => downloadCsv('question-template.csv', templateCsv)}>Download the template</button>
       </p>
       <div class="ai">
@@ -141,25 +140,19 @@
       </div>
       <textarea bind:value={pasted} rows="8" placeholder={'question\tA\tB\tC\tanswer\nWhat is 7 × 8?\t54\t56\t64\tB'}></textarea>
       <div class="row">
-        <button class="btn-primary" disabled={!pasted.trim()} onclick={() => runImport(pasted, 'Pasted questions')}>Import</button>
+        <button class="btn-primary" disabled={!pasted.trim()} onclick={async () => showImport(await importPasted(pasted))}>Import</button>
         <button class="btn-quiet" onclick={() => (pasteOpen = false)}>Cancel</button>
       </div>
     </section>
   {/if}
 
-  {#if importMessage || importErrors.length || importNotes.length}
+  {#if importMessage || importErrors.length}
     <section class="panel report" role="status">
       {#if importMessage}<p><strong>{importMessage}</strong></p>{/if}
       {#if importErrors.length}
         <ul>
           {#each importErrors.slice(0, 12) as error, i (i)}<li>{error}</li>{/each}
           {#if importErrors.length > 12}<li>…and {importErrors.length - 12} more.</li>{/if}
-        </ul>
-      {/if}
-      {#if importNotes.length}
-        <ul class="notes">
-          {#each importNotes.slice(0, 12) as note, i (i)}<li>{note}</li>{/each}
-          {#if importNotes.length > 12}<li>…and {importNotes.length - 12} more.</li>{/if}
         </ul>
       {/if}
     </section>
@@ -266,9 +259,6 @@
     padding-left: 1.2rem;
     color: var(--bad);
     margin-top: 0.4rem;
-  }
-  .report .notes {
-    color: var(--ink-soft);
   }
   .ai {
     display: flex;
