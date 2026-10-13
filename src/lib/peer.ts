@@ -8,14 +8,15 @@ export const roomPrefix = 'classgauntlet-';
 
 /**
  * teacher.dev's matchmaking server (a standard PeerJS server, shared with Happy
- * Hallways). It only introduces devices to each other; it stores nothing. Both names point at the
+ * Hallways). It only introduces devices to each other; it stores nothing. All three names point at the
  * same server, so a student and a teacher who reach it by different names still
- * find each other. This app lives on teacher.dev, so that name goes first.
+ * find each other. School filters that let classgauntlet.com through often let
+ * its own subdomain through too, so that name goes first.
  * Set VITE_PEER_HOST (and VITE_PEER_PORT, VITE_PEER_PATH, VITE_PEER_SECURE) in
  * .env.local to point at another one, e.g. a local `peerjs` server while testing.
  */
 const env = import.meta.env;
-const hosts = env.VITE_PEER_HOST ? [env.VITE_PEER_HOST as string] : ['peer.teacher.dev', 'peer.happyhallways.com'];
+const hosts = env.VITE_PEER_HOST ? [env.VITE_PEER_HOST as string] : ['peer.classgauntlet.com', 'peer.teacher.dev', 'peer.happyhallways.com'];
 const server = {
   port: Number(env.VITE_PEER_PORT || 443),
   path: (env.VITE_PEER_PATH as string) || '/peerjs',
