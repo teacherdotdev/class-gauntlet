@@ -14,9 +14,9 @@ const loginHours = 12;
  * for school filters that block the name turn.cloudflare.com. Cloudflare only
  * honours these for plain TURN over UDP and TCP; TLS (turns:) must keep its own
  * name. A filter that lets classgauntlet.com through likely lets its own name
- * through too; the others are shared with Happy Hallways.
+ * through too; teacher.dev is the fallback.
  */
-const ourRelayNames = ['turn.classgauntlet.com', 'turn.teacher.dev', 'turn.happyhallways.com'];
+const ourRelayNames = ['turn.classgauntlet.com', 'turn.teacher.dev'];
 
 export async function GET(): Promise<Response> {
   const { TURN_KEY_ID, TURN_KEY_API_TOKEN } = process.env;

@@ -52,8 +52,8 @@ student phones ──WebRTC data channels──▶ teacher's tab (runs the rules
 - `src/lib/game/` — the rules as plain TypeScript: `engine.ts` (commands and phases), `scoring.ts`, `views.ts` (what each screen may see: the correct answer never leaves the teacher's tab before the reveal).
 - `src/lib/host.svelte.ts` — the teacher's room: registers `classgauntlet-<PIN>` on the PeerJS server, accepts students, broadcasts views, and saves the whole game after every change. Reloading the tab offers to resume, reclaims the same code, and students reconnect on their own.
 - `src/lib/student.svelte.ts` — a student's link. Its seat (player id + secret) is kept in local storage, so a reload or dropped Wi-Fi puts the student back in with their points.
-- `src/lib/peer.ts` — shared with Happy Hallways: picks the first of `peer.classgauntlet.com`, `peer.teacher.dev` or `peer.happyhallways.com` that answers (all one server), fetches TURN logins from `/api/turn`, reconnects with backoff, heartbeats.
-- `api/turn.ts` — a Vercel function that hands out short-lived Cloudflare TURN logins. Needs `TURN_KEY_ID` and `TURN_KEY_API_TOKEN`. Some school filters block the name `turn.cloudflare.com`, so it also offers the plain (non-TLS) relay addresses as `turn.classgauntlet.com`, `turn.teacher.dev` and `turn.happyhallways.com`: DNS-only (grey cloud) CNAMEs to `turn.cloudflare.com`, since a proxied record would break the relay.
+- `src/lib/peer.ts` — shared with Happy Hallways: picks the first of `peer.classgauntlet.com` or `peer.teacher.dev` that answers (one server), fetches TURN logins from `/api/turn`, reconnects with backoff, heartbeats.
+- `api/turn.ts` — a Vercel function that hands out short-lived Cloudflare TURN logins. Needs `TURN_KEY_ID` and `TURN_KEY_API_TOKEN`. Some school filters block the name `turn.cloudflare.com`, so it also offers the plain (non-TLS) relay addresses as `turn.classgauntlet.com` and `turn.teacher.dev`: DNS-only (grey cloud) CNAMEs to `turn.cloudflare.com`, since a proxied record would break the relay.
 
 The teacher's tab must stay open during the game; closing it ends the room (a reload resumes it).
 
