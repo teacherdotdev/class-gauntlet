@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { aiInstructions, exportCsv, templateCsv } from './csv';
-import { importPasted, importQuestionFile } from './import';
+import { importPasted, importQuestionFile, keepPictures } from './import';
 
 const file = (name: string, text: string) => ({ name, bytes: new TextEncoder().encode(text) });
 
@@ -80,7 +80,7 @@ test('reads other formats, keeping only the multiple-choice questions and saying
   ]);
 });
 
-test('leaves out a question with a picture or more than four choices', async () => {
+test('keeps a question’s picture and formatting, and leaves out one with more than four choices', async () => {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <quiz>
   <question type="multichoice">
@@ -110,12 +110,25 @@ test('leaves out a question with a picture or more than four choices', async () 
     <answer fraction="0"><text>2</text></answer>
   </question>
 </quiz>`;
-  const { sets, errors } = await importQuestionFile(file('moodle.xml', xml));
-  expect(sets[0].questions.map((q) => [q.prompt, q.choices])).toEqual([['Which is largest?', ['10', '2']]]);
-  expect(errors).toEqual([
-    'Question 1 (line 3): it has a picture, and Class Gauntlet shows only text.',
-    'Question 2 (line 12): it has 5 answer choices, and Class Gauntlet plays 2 to 4.',
+  const { sets, errors, pictures } = await importQuestionFile(file('moodle.xml', xml));
+  expect(sets[0].questions.map((q) => [q.prompt, q.choices])).toEqual([
+    ['What colour is this square?\n[picture]', ['Red', 'Blue']],
+    ['Which is largest?', ['10', '2']],
   ]);
+  expect(errors).toEqual(['Question 2 (line 12): it has 5 answer choices, and Class Gauntlet plays 2 to 4.']);
+  const [square, largest] = sets[0].questions;
+  expect(largest.rich?.prompt).toEqual([
+    { type: 'paragraph', content: [{ type: 'text', text: 'Which is ' }, { type: 'text', text: 'largest', marks: [{ type: 'strong' }] }, { type: 'text', text: '?' }] },
+  ]);
+  const [key] = Object.keys(pictures);
+  expect(pictures[key].mimeType).toBe('image/png');
+  expect(JSON.stringify(square.rich?.prompt)).toContain(key);
+
+  const saved: Blob[] = [];
+  const kept = await keepPictures(sets, pictures, async (blob) => (saved.push(blob), 'hash1'));
+  expect(saved[0].type).toBe('image/png');
+  expect(JSON.stringify(kept[0].questions[0].rich?.prompt)).toContain('"asset":"hash1"');
+  expect(kept[0].questions[1]).toEqual(largest);
 });
 
 test('a file that isn’t questions says so', async () => {

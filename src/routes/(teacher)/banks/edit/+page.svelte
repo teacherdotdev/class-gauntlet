@@ -3,6 +3,7 @@
   // question, or one Topic), the questions as cards beside it with search
   // and filters, and a pop-up to edit the one you click. A bank has no
   // order. Everything saves as you go, and Cmd/Ctrl+Z undoes it.
+  import Rich from '#lib/rich/Rich.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { ArrowLeft, Copy, Download, Play, Plus, Redo2, Trash2, Undo2 } from '@lucide/svelte';
@@ -184,14 +185,14 @@
             {#each shown as question (question.id)}
               <li class="card">
                 <button class="read" onclick={() => (editing = { question, isNew: false })} aria-label="Edit question: {question.prompt}">
-                  <strong>{question.prompt}</strong>
+                  <strong class="prompt"><Rich rich={question.rich?.prompt} text={question.prompt} /></strong>
                   <span class="choices">
-                    {#each question.choices as c, ci (ci)}<span class:right={ci === question.correct}>{letter(ci)}. {c}</span>{/each}
+                    {#each question.choices as c, ci (ci)}<span class:right={ci === question.correct}>{letter(ci)}. <Rich rich={question.rich?.choices[ci]} text={c} /></span>{/each}
                   </span>
                   {#if question.topics?.length || question.explanation}
                     <span class="extra">
                       {#each question.topics ?? [] as t (t)}<span class="topic">{t}</span>{/each}
-                      {#if question.explanation}<em>{question.explanation}</em>{/if}
+                      {#if question.explanation}<em><Rich rich={question.rich?.explanation} text={question.explanation} /></em>{/if}
                     </span>
                   {/if}
                 </button>
@@ -536,5 +537,9 @@
     .none {
       display: none;
     }
+  }
+  .read .prompt {
+    display: block;
+    --picture-max: 6rem;
   }
 </style>

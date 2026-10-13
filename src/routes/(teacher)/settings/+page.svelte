@@ -5,6 +5,8 @@
   import { collectBackup, describeBackup, readBackup, restoreBackup, type Backup } from '#lib/backup.ts';
   import { gameHistory } from '#lib/history/store.svelte.ts';
   import { library } from '#lib/questions/store.svelte.ts';
+  import { base64ToBytes, bytesToBase64, pictureFile, storePictures } from '#lib/rich/pictures.svelte.ts';
+  import { picturesIn } from '#lib/rich/text.ts';
 
   let picker: HTMLInputElement;
   let incoming = $state<{ name: string; backup: Backup } | null>(null);
@@ -17,8 +19,17 @@
   };
   const current = $derived(describeBackup({ ...everything(), data: { banks: library.sets, history: gameHistory.records } }));
 
-  function exportAll() {
-    const text = JSON.stringify(everything(), null, 2);
+  async function withPictures(backup: Backup): Promise<Backup> {
+    const pictures = [];
+    for (const hash of picturesIn(backup.data.banks)) {
+      const file = await pictureFile(hash);
+      if (file) pictures.push({ hash, type: file.type, data: bytesToBase64(file.bytes) });
+    }
+    return pictures.length ? { ...backup, data: { ...backup.data, pictures } } : backup;
+  }
+
+  async function exportAll() {
+    const text = JSON.stringify(await withPictures(everything()), null, 2);
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     Object.assign(document.createElement('a'), { href: url, download: `class-gauntlet-backup-${new Date().toISOString().slice(0, 10)}.json` }).click();
     URL.revokeObjectURL(url);
@@ -33,8 +44,10 @@
     else incoming = { name: file.name, backup: read };
   }
 
-  function replace() {
+  async function replace() {
     if (!incoming) return;
+    const pictures = incoming.backup.data.pictures ?? [];
+    await storePictures(pictures.map((p) => ({ hash: p.hash, type: p.type, bytes: base64ToBytes(p.data) })));
     restoreBackup(localStorage, incoming.backup);
     location.reload();
   }
@@ -47,7 +60,7 @@
 <section class="panel">
   <h2>Your data</h2>
   <p class="note">
-    Everything lives only in this browser: your question banks, History, and how you last set up and played each game. Export it all
+    Everything lives only in this browser: your question banks and their pictures, History, and how you last set up and played each game. Export it all
     as one file to keep a backup or move to another computer.
   </p>
   <p class="have">In this browser: <strong>{current}</strong></p>

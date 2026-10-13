@@ -2,6 +2,7 @@
   // A student's phone during Classic: the question and its answers, then
   // whether they got it, and their own results at the end. Nothing about
   // anyone else.
+  import Rich from '../rich/Rich.svelte';
   import type { ClassicView } from '../game/classic/views';
   import { student } from '../student.svelte';
   import AnswerBlock from './AnswerBlock.svelte';
@@ -34,10 +35,10 @@
       </div>
     {:else if view.phase === 'QUESTION' && q}
       {#if me.canAnswer}
-        <p class="prompt">{q.prompt}</p>
+        <div class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></div>
         <div class="pad" class:four={q.choices.length === 4}>
           {#each q.choices as text, i (i)}
-            <AnswerBlock index={i} {text} big onclick={() => student.classicAnswer(i)} />
+            <AnswerBlock index={i} {text} rich={q.rich?.choices[i]} big onclick={() => student.classicAnswer(i)} />
           {/each}
         </div>
       {:else}
@@ -54,8 +55,8 @@
         {:else}
           <h1 class="shout">{me.right ? 'Correct!' : 'Not quite'}</h1>
         {/if}
-        {#if q.correct !== null}<p>The answer was <b>{letter(q.correct)}: {q.choices[q.correct]}</b></p>{/if}
-        {#if q.explanation}<p class="note">{q.explanation}</p>{/if}
+        {#if q.correct !== null}<p>The answer was <b>{letter(q.correct)}: <Rich rich={q.rich?.choices[q.correct]} text={q.choices[q.correct]} /></b></p>{/if}
+        {#if q.explanation}<p class="note"><Rich rich={q.rich?.explanation} text={q.explanation} /></p>{/if}
       </div>
     {:else}
       <div class="moment">
@@ -159,6 +160,7 @@
     background: rgb(0 0 0 / 0.18);
   }
   .prompt {
+    --picture-max: 30vh;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--serif);

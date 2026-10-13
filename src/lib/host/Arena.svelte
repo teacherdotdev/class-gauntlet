@@ -3,6 +3,7 @@
   // built from the public view, so the question stays hidden while the class
   // answers and the right answer stays hidden until the reveal. Inside a
   // question the game moves itself along; the teacher taps Next in between.
+  import Rich from '../rich/Rich.svelte';
   import Avatar from '../components/Avatar.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
   import Crowd, { type CrowdMember } from '../components/Crowd.svelte';
@@ -254,12 +255,12 @@
       {:else if phase === 'PHASE_A_LOCKED' && q}
         <div class="callout"><div><h1>Answers are in!</h1><p>The question passes to {one}…</p></div></div>
       {:else if q?.choices}
-        <h2 class="question">{q.prompt}</h2>
+        <h2 class="question"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></h2>
         <div class="blocks" class:three={q.choices.length === 3} class:polling={pollMode}>
           {#each q.choices as text, i (i)}
             <AnswerBlock
               index={i}
-              {text}
+              {text} rich={q.rich?.choices[i]}
               big
               state={blockState(i)}
               count={q.reveal ? q.reveal.counts[i] : null}
@@ -300,7 +301,7 @@
             {/if}
             {#if q.reveal.momentumFilled}<b> On a Roll: a chance is won back!</b>{/if}
           </p>
-          {#if q.reveal.explanation}<p class="explain">{q.reveal.explanation}</p>{/if}
+          {#if q.reveal.explanation}<p class="explain"><Rich rich={q.rich?.explanation} text={q.reveal.explanation} /></p>{/if}
         {/if}
       {/if}
     </main>
@@ -653,6 +654,7 @@
     font-size: 2rem;
   }
   .question {
+    --picture-max: 38vh;
     background: var(--paper);
     color: var(--ink);
     padding: 1rem 1.5rem;

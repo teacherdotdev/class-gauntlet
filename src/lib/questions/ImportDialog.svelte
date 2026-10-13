@@ -3,12 +3,14 @@
   // one), or paste cells from a spreadsheet. We read it, show what's coming in
   // and what was left out, and the teacher confirms. For a worksheet, PDF or
   // photo, an AI chat can turn it into our spreadsheet first.
+  import Rich from '../rich/Rich.svelte';
   import { Check, ClipboardPaste, Download, FileUp, Sparkles, X } from '@lucide/svelte';
   import { FORMATS } from '@teacherdotdev/question-commons';
   import type { QuestionBank } from '../game/types';
   import { plural } from '../words';
   import { aiInstructions, downloadCsv, templateCsv } from './csv';
-  import { importPasted, importQuestionFile, questionFileTypes, type ImportResult } from './import';
+  import { importPasted, importQuestionFile, keepPictures, questionFileTypes, type ImportResult } from './import';
+  import { receivePicture, savePicture } from '../rich/pictures.svelte';
   import { library } from './store.svelte';
 
   let { onimported }: { onimported?: (message: string) => void } = $props();
@@ -78,6 +80,9 @@
       return;
     }
     error = '';
+    // The preview shows the file's pictures from memory; they're stored on Import.
+    for (const [key, picture] of Object.entries(read.pictures))
+      receivePicture({ hash: key, type: picture.mimeType, bytes: picture.bytes.slice().buffer as ArrayBuffer });
     picks = read.sets.map((bank) => ({ bank, take: true, title: bank.title }));
     shown = 0;
     phase = 'review';
@@ -87,8 +92,9 @@
   const comingCount = $derived(coming.reduce((n, p) => n + p.bank.questions.length, 0));
   const leftOut = $derived(result?.errors ?? []);
 
-  function confirm() {
-    for (const p of coming) library.add({ ...$state.snapshot(p.bank), title: p.title.trim() || p.bank.title });
+  async function confirm() {
+    const chosen = coming.map((p) => ({ ...$state.snapshot(p.bank), title: p.title.trim() || p.bank.title }) as QuestionBank);
+    for (const bank of await keepPictures(chosen, result?.pictures ?? {}, savePicture)) library.add(bank);
     onimported?.(`Added ${plural(comingCount, 'question')} in ${plural(coming.length, 'bank')}.`);
     close();
   }
@@ -150,9 +156,9 @@
             <ol>
               {#each picks[shown].bank.questions as q (q.id)}
                 <li>
-                  <p>{q.prompt}</p>
+                  <div class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt} /></div>
                   <ul class="choices">
-                    {#each q.choices as c, ci (ci)}<li class:right={ci === q.correct}>{c}</li>{/each}
+                    {#each q.choices as c, ci (ci)}<li class:right={ci === q.correct}><Rich rich={q.rich?.choices[ci]} text={c} /></li>{/each}
                   </ul>
                 </li>
               {/each}
@@ -474,7 +480,8 @@
     align-content: start;
     padding-left: 1.4rem;
   }
-  .preview ol > li p {
+  .preview ol > li .prompt {
+    --picture-max: 6rem;
     font-weight: 600;
   }
   .choices {

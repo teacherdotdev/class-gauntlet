@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Rich from '#lib/rich/Rich.svelte';
   import { page } from '$app/state';
   import AnswerBlock from '#lib/components/AnswerBlock.svelte';
   import Avatar from '#lib/components/Avatar.svelte';
@@ -202,10 +203,10 @@
             <p class="count">{q?.answered} / {q?.eligible}</p>
           </div>
         {:else if answering && q?.choices}
-          <p class="prompt">{q.prompt}</p>
+          <div class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></div>
           <div class="pad" class:four={q.choices.length === 4}>
             {#each q.choices as text, i (i)}
-              <AnswerBlock index={i} {text} big onclick={() => student.answer(i)} />
+              <AnswerBlock index={i} {text} rich={q.rich?.choices[i]} big onclick={() => student.answer(i)} />
             {/each}
           </div>
         {:else if me.myAnswer !== null}
@@ -221,7 +222,7 @@
         {/if}
       {:else if phase === 'PHASE_B' || phase === 'ONE_LOCKED'}
         {#if oneAnswering && q?.choices}
-          <p class="prompt">{q.prompt}</p>
+          <div class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></div>
           {#if q.helpResult}
             <p class="help-note">
               {#if q.helpResult.type === 'poll'}
@@ -233,7 +234,7 @@
           {/if}
           <div class="pad" class:four={q.choices.length === 4}>
             {#each q.choices as text, i (i)}
-              <AnswerBlock index={i} {text} big onclick={() => student.oneAnswer(i)} />
+              <AnswerBlock index={i} {text} rich={q.rich?.choices[i]} big onclick={() => student.oneAnswer(i)} />
             {/each}
           </div>
         {:else if iAmOne}
@@ -578,6 +579,7 @@
     background: rgb(0 0 0 / 0.18);
   }
   .prompt {
+    --picture-max: 30vh;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--serif);

@@ -4,6 +4,8 @@
  * student only the slice they are allowed to see (see views.ts).
  */
 
+import type { RichQuestion } from '../rich/text';
+
 export type Question = {
   id: string;
   prompt: string;
@@ -14,6 +16,11 @@ export type Question = {
   explanation?: string;
   /** Concepts the question covers; a Topic gathers questions across banks. */
   topics?: string[];
+  /**
+   * The same words with formatting, math or pictures, when they have any
+   * (see rich/text.ts). The plain fields above are then their plain text.
+   */
+  rich?: RichQuestion;
 };
 
 export type QuestionBank = {

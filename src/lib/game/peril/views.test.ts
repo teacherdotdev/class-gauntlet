@@ -14,6 +14,11 @@ const board: Column[] = [
         choices: ['A', 'B', 'C'],
         correct: 2,
         explanation: 'Because.',
+        rich: {
+          prompt: [{ type: 'paragraph', content: [{ type: 'inline-math', source: `x_${row}` }] }],
+          choices: ['A', 'B', 'C'].map((text) => [{ type: 'paragraph', content: [{ type: 'text', text }] }]),
+          explanation: [{ type: 'block-image', asset: 'why' }],
+        },
       },
       treasureTrove: row === 1,
     })),
@@ -61,12 +66,21 @@ test('nobody sees the right answer, or where the Treasure Trove hides, before th
     explanation: null,
   });
   expect(view(ana).open!.correct).toBeNull();
+  expect(view(ana).open!.rich?.prompt).toEqual(board[0].tiles[0].question.rich!.prompt);
+  expect(JSON.stringify(view(ana))).not.toContain('"why"');
   engine.answer(cy, 2);
+  expect(view().open!.rich?.explanation).toEqual([{ type: 'block-image', asset: 'why' }]);
   expect(view().open).toMatchObject({
     correct: 2,
     explanation: 'Because.',
     result: { name: 'Wyverns', correct: true, points: 100 },
   });
+});
+
+test('a Treasure Trove’s rich words stay hidden while Wagers are set, like its plain words', () => {
+  const { engine, view } = teamGame();
+  engine.pickTile(0, 1);
+  expect(view().open).toMatchObject({ prompt: null, rich: null });
 });
 
 test('a Team’s live tally and Wagers reach only its own members; others see how many have voted', () => {

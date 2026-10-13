@@ -5,6 +5,7 @@ import type { ClassicView } from './game/classic/views';
 import type { PerilView } from './game/peril/views';
 import type { View } from './game/views';
 import type { HostMessage, StudentMessage } from './protocol';
+import { receivePicture } from './rich/pictures.svelte';
 
 /**
  * A student's device. It dials the teacher's tab by room code, introduces
@@ -154,6 +155,11 @@ class StudentLink {
         this.problem = '';
         this.slow = false;
         break;
+      case 'picture': {
+        const bytes = message.bytes instanceof Uint8Array ? message.bytes.slice().buffer : message.bytes;
+        receivePicture({ hash: message.hash, type: message.mime, bytes });
+        break;
+      }
       case 'view': {
         const view = message.view;
         const remainingMs = view.mode === 'peril' ? view.open?.remainingMs : view.question?.remainingMs;

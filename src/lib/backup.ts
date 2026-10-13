@@ -1,6 +1,6 @@
 /**
- * Everything this browser keeps for a teacher, as one file: question banks,
- * History, and each Game Mode's remembered rules and setup. Importing a
+ * Everything this browser keeps for a teacher, as one file: question banks
+ * (with their pictures), History, and each Game Mode's remembered rules and setup. Importing a
  * backup replaces all of it. A game in progress and students' seats stay
  * behind; they belong to this computer's open tabs.
  */
@@ -21,7 +21,10 @@ export type Backup = {
   kind: 'class-gauntlet-backup';
   version: 1;
   exportedAt: string;
-  data: Partial<Record<BackupPart, unknown>>;
+  data: Partial<Record<BackupPart, unknown>> & {
+    /** The pictures the banks show, as base64; they live in IndexedDB, not local storage. */
+    pictures?: { hash: string; type: string; data: string }[];
+  };
 };
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -53,7 +56,7 @@ export function readBackup(text: string): Backup | { problem: string } {
     return { problem: 'That file isn’t a Class Gauntlet backup.' };
   if (typeof backup.version !== 'number' || backup.version > 1)
     return { problem: 'That backup is from a newer Class Gauntlet. Reload the page and try again.' };
-  for (const part of ['banks', 'history'] as const)
+  for (const part of ['banks', 'history', 'pictures'] as const)
     if (part in backup.data && !Array.isArray(backup.data[part])) return { problem: `The ${part} in that backup are damaged.` };
   return backup as Backup;
 }
@@ -66,11 +69,12 @@ export function restoreBackup(storage: Store, backup: Backup) {
   }
 }
 
-/** "3 question banks (40 questions), 12 games in History" */
+/** "3 question banks (40 questions, 2 pictures), 12 games in History" */
 export function describeBackup(backup: Backup): string {
   const banks = (backup.data.banks ?? []) as { questions?: unknown[] }[];
   const questions = banks.reduce((n, bank) => n + (bank.questions?.length ?? 0), 0);
   const games = ((backup.data.history ?? []) as unknown[]).length;
+  const pictures = backup.data.pictures?.length ?? 0;
   const s = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  return `${s(banks.length, 'question bank')} (${s(questions, 'question')}), ${s(games, 'game')} in History`;
+  return `${s(banks.length, 'question bank')} (${s(questions, 'question')}${pictures ? `, ${s(pictures, 'picture')}` : ''}), ${s(games, 'game')} in History`;
 }

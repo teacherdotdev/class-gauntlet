@@ -6,6 +6,8 @@
   import { untrack } from 'svelte';
   import TopicInput from '../components/TopicInput.svelte';
   import type { Question } from '../game/types';
+  import RichEditor from '../rich/RichEditor.svelte';
+  import { fromPlain, plainOf, type RichQuestion, type RichText } from '../rich/text';
   import { cleanQuestion, questionProblems } from './edit';
 
   let {
@@ -26,29 +28,57 @@
 
   // A working copy, so Cancel leaves the bank untouched.
   // (The page remounts the panel for each question, so reading it once is right.)
+  // Every field is Rich Text while it's edited; saving works out the plain text.
   let draft = $state<Question>(untrack(() => structuredClone($state.snapshot(question))));
+  let rich = $state<RichQuestion>(
+    untrack(() =>
+      structuredClone(
+        $state.snapshot(question.rich) ?? {
+          prompt: fromPlain(question.prompt),
+          choices: question.choices.map(fromPlain),
+          explanation: fromPlain(question.explanation ?? ''),
+        },
+      ),
+    ),
+  );
+  // Each answer's editor keeps its place when one above it is removed.
+  let nextKey = 0;
+  let keys = $state(untrack(() => question.choices.map(() => nextKey++)));
   let problems = $state<string[]>([]);
-  let promptBox: HTMLTextAreaElement;
   let dialog: HTMLDialogElement;
-  const dirty = $derived(JSON.stringify(cleanQuestion(draft)) !== JSON.stringify(cleanQuestion(question)));
+  const current = (): Question => cleanQuestion({ ...$state.snapshot(draft), rich: $state.snapshot(rich) } as Question);
+  const dirty = $derived(JSON.stringify(current()) !== JSON.stringify(cleanQuestion(question)));
   const letter = (i: number) => String.fromCharCode(65 + i);
 
   $effect(() => {
     dialog.showModal();
-    if (isNew) promptBox?.focus();
   });
 
   function save() {
-    problems = questionProblems(draft);
-    if (!problems.length) onsave(cleanQuestion($state.snapshot(draft)));
+    const saved = current();
+    problems = questionProblems(saved);
+    if (!problems.length) onsave(saved);
+  }
+
+  function setChoice(i: number, value: RichText) {
+    rich.choices[i] = value;
+    draft.choices[i] = plainOf(value);
   }
 
   function close() {
     if (!dirty || confirm('Close without saving this question?')) onclose();
   }
 
+  function addChoice() {
+    draft.choices.push('');
+    rich.choices.push(fromPlain(''));
+    keys.push(nextKey++);
+  }
+
   function removeChoice(i: number) {
     draft.choices.splice(i, 1);
+    rich.choices.splice(i, 1);
+    keys.splice(i, 1);
     if (draft.correct === i) draft.correct = 0;
     else if (draft.correct > i) draft.correct--;
   }
@@ -82,13 +112,20 @@
       <span>Topics</span>
       <TopicInput bind:topics={draft.topics} suggestions={knownTopics} label="Topics" />
     </div>
-    <label class="field">Question
-      <textarea bind:this={promptBox} bind:value={draft.prompt} rows="3" placeholder="e.g. What is 7 × 8?"></textarea>
-    </label>
+    <div class="field">
+      <span>Question</span>
+      <RichEditor
+        value={rich.prompt}
+        onchange={(value) => ((rich.prompt = value), (draft.prompt = plainOf(value)))}
+        label="Question"
+        placeholder="e.g. What is 7 × 8? Type / for a picture, math or a table."
+        autofocus={isNew}
+      />
+    </div>
 
     <fieldset>
       <legend>Answers <small>(click a letter to mark the right one)</small></legend>
-      {#each draft.choices as _, i (i)}
+      {#each keys as key, i (key)}
         <div class="choice" class:right={draft.correct === i}>
           <button
             type="button"
@@ -99,20 +136,26 @@
           >
             {#if draft.correct === i}<Check size={16} />{:else}{letter(i)}{/if}
           </button>
-          <input bind:value={draft.choices[i]} placeholder="Answer {letter(i)}" aria-label="Answer {letter(i)}" />
+          <div class="answer"><RichEditor value={rich.choices[i]} onchange={(value) => setChoice(i, value)} label="Answer {letter(i)}" placeholder="Answer {letter(i)}" /></div>
           {#if draft.choices.length > 2}
             <button type="button" class="icon" onclick={() => removeChoice(i)} aria-label="Remove answer {letter(i)}"><X size={16} /></button>
           {/if}
         </div>
       {/each}
       {#if draft.choices.length < 4}
-        <button type="button" class="btn-quiet add" onclick={() => draft.choices.push('')}><Plus size={15} aria-hidden="true" /> Add answer {letter(draft.choices.length)}</button>
+        <button type="button" class="btn-quiet add" onclick={addChoice}><Plus size={15} aria-hidden="true" /> Add answer {letter(draft.choices.length)}</button>
       {/if}
     </fieldset>
 
-    <label class="field">Why it’s right <small>(optional, shown after the answer)</small>
-      <input bind:value={draft.explanation} placeholder="A short explanation" />
-    </label>
+    <div class="field">
+      <span>Why it’s right <small>(optional, shown after the answer)</small></span>
+      <RichEditor
+        value={rich.explanation ?? fromPlain('')}
+        onchange={(value) => ((rich.explanation = value), (draft.explanation = plainOf(value)))}
+        label="Why it’s right"
+        placeholder="A short explanation"
+      />
+    </div>
 
 
     {#if problems.length}
@@ -130,8 +173,8 @@
 
 <style>
   .qdialog {
-    width: min(40rem, calc(100vw - 2rem));
-    max-height: min(46rem, calc(100dvh - 2rem));
+    width: min(48rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
     padding: 0;
     border: 0;
     border-radius: 16px;
@@ -195,6 +238,8 @@
   }
   fieldset {
     border: 0;
+    padding: 0;
+    margin: 0;
     display: grid;
     gap: 0.45rem;
   }
@@ -209,21 +254,27 @@
   }
   .choice {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.4rem;
   }
-  .choice input {
+  .choice > .mark,
+  .choice > .icon {
+    margin-top: 0.15rem;
+  }
+  .answer {
     flex: 1;
     min-width: 0;
-    font: inherit;
-    padding: 0.5rem 0.65rem;
-    border-radius: 8px;
-    border: 1px solid var(--line-strong);
-    background: #fff;
   }
-  .choice.right input {
+  .choice.right .answer :global(.rich-editor) {
     border-color: var(--good-line);
-    background: var(--good-wash);
+    box-shadow: inset 4px 0 0 var(--good);
+  }
+  .field {
+    display: grid;
+    gap: 0.35rem;
+  }
+  .field > span {
+    font-weight: 700;
   }
   .mark {
     display: grid;

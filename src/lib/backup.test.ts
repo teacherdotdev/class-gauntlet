@@ -32,6 +32,9 @@ test('a backup holds the banks, History and every Game Mode’s rules and setup,
     classicRules: { timerSeconds: 30 },
   });
   expect(describeBackup(backup)).toBe('1 question bank (2 questions), 1 game in History');
+  expect(describeBackup({ ...backup, data: { ...backup.data, pictures: [{ hash: 'h', type: 'image/png', data: '' }] } })).toBe(
+    '1 question bank (2 questions, 1 picture), 1 game in History',
+  );
 });
 
 test('restoring a backup replaces everything, and what the backup lacks is cleared', () => {
@@ -62,4 +65,5 @@ test('files that aren’t backups are refused with a reason', () => {
   expect(readBackup('{"kind":"something"}')).toEqual({ problem: expect.stringContaining('isn’t a Class Gauntlet backup') });
   expect(readBackup('{"kind":"class-gauntlet-backup","version":9,"data":{}}')).toEqual({ problem: expect.stringContaining('newer') });
   expect(readBackup('{"kind":"class-gauntlet-backup","version":1,"data":{"banks":{}}}')).toEqual({ problem: expect.stringContaining('damaged') });
+  expect(readBackup('{"kind":"class-gauntlet-backup","version":1,"data":{"pictures":"x"}}')).toEqual({ problem: expect.stringContaining('damaged') });
 });

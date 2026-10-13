@@ -2,6 +2,7 @@
   // A student's phone during Peril!: choose a Team, pick a Tile when you have
   // Control, slam the buzzer, answer (or vote with your Team), and wager on a
   // Treasure Trove.
+  import Rich from '../rich/Rich.svelte';
   import type { PerilView } from '../game/peril/views';
   import { student } from '../student.svelte';
   import AnswerBlock from './AnswerBlock.svelte';
@@ -149,7 +150,7 @@
       {/if}
     {:else if phase === 'ANSWERING' && open?.choices}
       {#if me.canAnswer}
-        <p class="prompt">{open.prompt}</p>
+        <div class="prompt"><Rich rich={open.rich?.prompt} text={open.prompt ?? ''} /></div>
         {#if !view.solo}<p class="note">
             Vote with your team. Most votes wins{open.buzzer
               ? `; a tie goes to ${open.buzzer}`
@@ -159,7 +160,7 @@
           {#each open.choices as text, i (i)}
             <AnswerBlock
               index={i}
-              {text}
+              {text} rich={open.rich?.choices[i]}
               big
               state={me.myVote === null ? 'idle' : me.myVote === i ? 'chosen' : 'faded'}
               count={open.tally ? open.tally[i] : null}
@@ -190,7 +191,7 @@
           <h1>The answer was {letter(open.correct)}</h1>
         {/if}
         {#if open.correct !== null && open.choices}<p>
-            {letter(open.correct)}: {open.choices[open.correct]}
+            {letter(open.correct)}: <Rich rich={open.rich?.choices[open.correct]} text={open.choices[open.correct]} />
           </p>{/if}
       </div>
     {:else if phase === 'FINAL' || phase === 'ENDED'}
@@ -299,6 +300,7 @@
     line-height: 1;
   }
   .prompt {
+    --picture-max: 30vh;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--serif);

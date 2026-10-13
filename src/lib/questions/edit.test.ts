@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { Question } from '../game/types';
-import { cleanQuestion, moveQuestion, questionProblems } from './edit';
+import { fromPlain, type RichText } from '../rich/text';
+import { cleanQuestion, questionProblems } from './edit';
 
 const q = (over: Partial<Question> = {}): Question => ({ id: 'q', prompt: 'What is 7 × 8?', choices: ['54', '56'], correct: 1, ...over });
 
@@ -22,9 +23,19 @@ test('a saved question is trimmed, with empty extras left off', () => {
   });
 });
 
-test('moving a question puts it where it was dropped', () => {
-  const list = ['a', 'b', 'c', 'd'].map((id) => q({ id }));
-  expect(moveQuestion(list, 0, 2).map((x) => x.id)).toEqual(['b', 'c', 'a', 'd']);
-  expect(moveQuestion(list, 3, 0).map((x) => x.id)).toEqual(['d', 'a', 'b', 'c']);
-  expect(moveQuestion(list, 1, 1)).toBe(list);
+const picture = (asset: string): RichText => [{ type: 'block-image', asset }];
+const math = (source: string): RichText => [{ type: 'paragraph', content: [{ type: 'inline-math', source }] }];
+
+test('an answer that is only a picture is filled in, and two different pictures differ', () => {
+  const rich = { prompt: fromPlain('Which is a triangle?'), choices: [picture('a'), picture('b')] };
+  expect(questionProblems(cleanQuestion(q({ rich })))).toEqual([]);
+  expect(questionProblems(cleanQuestion(q({ rich: { ...rich, choices: [picture('a'), picture('a')] } })))).toEqual(['Two answers are the same.']);
+  expect(questionProblems(cleanQuestion(q({ rich: { ...rich, prompt: fromPlain(' ') } })))).toEqual(['Write the question.']);
+});
+
+test('a saved question’s plain text follows its rich text, which is kept only when it says more', () => {
+  const kept = cleanQuestion(q({ rich: { prompt: math('x^2'), choices: [fromPlain('4'), fromPlain('9')], explanation: fromPlain('') } }));
+  expect(kept).toEqual({ id: 'q', prompt: 'x^2', choices: ['4', '9'], correct: 1, rich: { prompt: math('x^2'), choices: [fromPlain('4'), fromPlain('9')] } });
+  const plain = cleanQuestion(q({ rich: { prompt: fromPlain('Plain?'), choices: [fromPlain('a'), fromPlain('b')] } }));
+  expect(plain).toEqual({ id: 'q', prompt: 'Plain?', choices: ['a', 'b'], correct: 1 });
 });

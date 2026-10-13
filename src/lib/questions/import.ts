@@ -3,27 +3,33 @@ import {
   QUESTION_FILE_EXTENSIONS,
   QuestionFileError,
   readQuestionFile,
+  type Picture,
   type Question as BankQuestion,
   type QuestionType,
-  type RichText,
 } from '@teacherdotdev/question-commons';
 import type { Question, QuestionBank } from '../game/types';
 import { randomId } from '../game/engine';
+import { hasContent, isPlain, picturesIn, renamePictures, type RichText } from '../rich/text';
+import { cleanQuestion } from './edit';
 
 /**
  * Question files are read by Question Commons, which knows the files
  * teachers' tools write: spreadsheets (ours, Kahoot's, Blooket's), Moodle,
  * Canvas, Blackboard, Respondus and more, as CSV, Excel, Word or text. Each Question Bank it reads becomes a
- * set. The game plays only multiple choice with one right answer, two to four
- * text choices and no pictures, so every other question is left out and the
- * teacher is told which and why.
+ * set. The game plays only multiple choice with one right answer and two to
+ * four choices, so every other question is left out and the teacher is told
+ * which and why. Formatting, math and pictures come along.
  */
 
 /** For the file picker: every file type a Format arrives as. */
 export const questionFileTypes = QUESTION_FILE_EXTENSIONS.join(',');
 
-/** `errors` are the questions (or the file) that were left out. */
-export type ImportResult = { sets: QuestionBank[]; errors: string[]; formatLabel?: string };
+/**
+ * `errors` are the questions (or the file) that were left out. `pictures`
+ * are the ones the sets show, under the file's own names for them, until
+ * `keepPictures` stores them.
+ */
+export type ImportResult = { sets: QuestionBank[]; errors: string[]; formatLabel?: string; pictures: Record<string, Picture> };
 
 const typeNames: Record<Exclude<QuestionType, 'multiple-choice' | 'multiple-answer'>, string> = {
   'true-false': 'true/false',
@@ -34,20 +40,14 @@ const typeNames: Record<Exclude<QuestionType, 'multiple-choice' | 'multiple-answ
   ordering: 'ordering',
 };
 
-const has = (text: RichText | undefined, type: string): boolean =>
-  !!text?.some((node) => node.type === type || has(node.content, type));
-
 /** Why a question can't be played, or null when it can. */
 function unplayable(q: BankQuestion): string | null {
   if (q.type === 'multiple-answer') return 'it has more than one right answer, and Class Gauntlet plays only multiple choice with one.';
   if (q.type !== 'multiple-choice') return `it is ${typeNames[q.type]}, and Class Gauntlet plays only multiple choice with one right answer.`;
-  const texts = [q.stem, q.explanation, ...q.choices.map((c) => c.content)];
-  if (texts.some((text) => has(text, 'block-image'))) return 'it has a picture, and Class Gauntlet shows only text.';
-  if (texts.some((text) => has(text, 'inline-math'))) return 'it has math written as LaTeX, and Class Gauntlet shows only plain text.';
   if (q.choices.length < 2 || q.choices.length > 4) return `it has ${q.choices.length} answer choices, and Class Gauntlet plays 2 to 4.`;
-  const choices = q.choices.map((c) => plainText(c.content).trim());
-  if (choices.some((c) => c === '')) return 'an answer choice is blank.';
-  if (new Set(choices.map((c) => c.toLowerCase())).size !== choices.length) return 'two answer choices are the same.';
+  if (q.choices.some((c) => !hasContent(c.content))) return 'an answer choice is blank.';
+  const keys = q.choices.map((c) => (isPlain(c.content) ? plainText(c.content).trim().toLowerCase() : JSON.stringify(c.content)));
+  if (new Set(keys).size !== keys.length) return 'two answer choices are the same.';
   return null;
 }
 
@@ -59,7 +59,7 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
     if (!(reason instanceof QuestionFileError)) throw reason;
     const message =
       reason.code === 'not-recognized' ? `No questions were found in “${file.name}” in a format Class Gauntlet reads.` : reason.message;
-    return { sets: [], errors: [message] };
+    return { sets: [], errors: [message], pictures: {} };
   }
   const errors = reading.issues.map((issue) => issue.message);
   const sets: QuestionBank[] = [];
@@ -72,14 +72,16 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
         errors.push(`Question ${number}${line ? ` (line ${line})` : ''}: ${why}`);
         continue;
       }
-      questions.push({
-        id: randomId(),
-        prompt: plainText(q.stem).trim(),
-        choices: q.choices.map((c) => plainText(c.content).trim()),
-        correct: q.choices.findIndex((c) => c.correct),
-        explanation: (q.explanation && plainText(q.explanation).trim()) || undefined,
-        ...(q.topics?.length ? { topics: q.topics } : {}),
-      });
+      questions.push(
+        cleanQuestion({
+          id: randomId(),
+          prompt: '',
+          choices: [],
+          correct: q.choices.findIndex((c) => c.correct),
+          ...(q.topics?.length ? { topics: q.topics } : {}),
+          rich: { prompt: q.stem, choices: q.choices.map((c) => c.content), ...(q.explanation ? { explanation: q.explanation } : {}) },
+        }),
+      );
     }
     if (!questions.length) continue;
     sets.push({
@@ -89,7 +91,30 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
       updatedAt: Date.now(),
     });
   }
-  return { sets, errors, formatLabel: reading.banks[0]?.provenance.formatLabel };
+  const shown = picturesIn(sets);
+  const pictures = Object.fromEntries(Object.entries(reading.pictures).filter(([key]) => shown.has(key)));
+  return { sets, errors, formatLabel: reading.banks[0]?.provenance.formatLabel, pictures };
+}
+
+/** Stores the pictures the sets show (`save` resolves to where each was kept) and points the sets at them. */
+export async function keepPictures(
+  sets: QuestionBank[],
+  pictures: Record<string, Picture>,
+  save: (picture: Blob) => Promise<string>,
+): Promise<QuestionBank[]> {
+  const kept = new Map<string, string>();
+  for (const [key, picture] of Object.entries(pictures))
+    kept.set(key, await save(new Blob([picture.bytes as Uint8Array<ArrayBuffer>], { type: picture.mimeType })));
+  if (!kept.size) return sets;
+  const rename = (rich: RichText) => renamePictures(rich, (asset) => kept.get(asset));
+  return sets.map((set) => ({
+    ...set,
+    questions: set.questions.map((q) =>
+      q.rich
+        ? { ...q, rich: { prompt: rename(q.rich.prompt), choices: q.rich.choices.map(rename), ...(q.rich.explanation ? { explanation: rename(q.rich.explanation) } : {}) } }
+        : q,
+    ),
+  }));
 }
 
 /** Cells pasted from a spreadsheet, or an AI chat's reply, read as a file of their own. */

@@ -2,6 +2,7 @@
   // Choosing the questions to play, in order: the question browser on the
   // left, the list on the right. Drag questions across, click them, or filter
   // to a bank and press Add all. Champion and Classic both set up this way.
+  import Rich from '../rich/Rich.svelte';
   import { library } from '../questions/store.svelte';
   import { ArrowDown, ArrowUp, X } from '@lucide/svelte';
   import { dragged, endDrag } from './drag';
@@ -56,7 +57,7 @@
         {#each deck as q, i (q.id)}
           <li>
             <span class="n">{i + 1}</span>
-            <span class="prompt">{q.prompt}</span>
+            <span class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt} /></span>
             <button class="icon" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move question {i + 1} up"><ArrowUp size={16} /></button>
             <button class="icon" onclick={() => move(i, 1)} disabled={i === deck.length - 1} aria-label="Move question {i + 1} down"><ArrowDown size={16} /></button>
             <button class="icon" onclick={() => remove(q.id)} aria-label="Remove question {i + 1}"><X size={16} /></button>
@@ -129,6 +130,7 @@
     color: var(--accent);
   }
   .prompt {
+    --picture-max: 4rem;
     flex: 1;
     min-width: 0;
   }

@@ -2,6 +2,7 @@
   // Every question in the library, to search and filter the way Notion
   // filters a table (see FilterChips). Click to select, Shift- or Cmd-click
   // for more; + adds, and dragging carries the selection.
+  import Rich from '../rich/Rich.svelte';
   import type { Question } from '../game/types';
   import { Plus } from '@lucide/svelte';
   import { browse, libraryTopics, select, type QuestionFilter, type Selection } from '../questions/browse';
@@ -95,7 +96,7 @@
         ondragend={endDrag}
       >
         <button class="row" onclick={(e) => clickRow(e, row.question)} aria-pressed={selected.includes(id)} title={pickLabel ?? undefined}>
-          <span class="prompt">{row.question.prompt}</span>
+          <span class="prompt"><Rich rich={row.question.rich?.prompt} text={row.question.prompt} /></span>
           <span class="meta">
             <span>{row.bank.title}</span>
             {#each row.question.topics ?? [] as topic (topic)}<span class="topic">{topic}</span>{/each}
@@ -231,6 +232,7 @@
     font-size: 0.82rem;
   }
   .prompt {
+    --picture-max: 4rem;
     font-weight: 600;
   }
   .meta {

@@ -1,5 +1,6 @@
 import { reportOf } from './engine';
 import type { ClassicPhase, ClassicReport, ClassicSession } from './types';
+import { richShown, type RichQuestion } from '../../rich/text';
 
 /**
  * What a Classic screen may see. While the class answers, nobody gets the
@@ -22,6 +23,8 @@ export type ClassicView = {
     total: number;
     prompt: string;
     choices: string[];
+    /** The words' Rich Text, when they have any; only while they're shown, with the explanation once revealed. */
+    rich: RichQuestion | null;
     answered: number;
     /** Students who can answer it. */
     answering: number;
@@ -66,6 +69,7 @@ export function buildClassicView(session: ClassicSession, options: { now: number
             total: s.questions.length,
             prompt: question.prompt,
             choices: question.choices,
+            rich: richShown(question, true, !!revealed),
             answered: answers.length,
             answering: s.players.filter((p) => p.connected || answers.some((a) => a.playerId === p.id)).length,
             remainingMs: s.phase === 'QUESTION' && s.deadline !== null ? Math.max(0, s.deadline - options.now) : null,

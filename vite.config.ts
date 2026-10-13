@@ -35,4 +35,19 @@ export default defineConfig({
   ],
   envPrefix: ['VITE_', 'CF_BEACON_TOKEN'],
   server: { allowedHosts: ['.exe.xyz', '.edtechathon.com'] },
+  // The question editor's packages, bundled up front so opening it in dev
+  // doesn't make Vite re-bundle and reload mid-session.
+  optimizeDeps: {
+    include: [
+      '@milkdown/crepe',
+      '@milkdown/crepe/feature/toolbar',
+      '@milkdown/kit/core',
+      '@milkdown/kit/ctx',
+      '@milkdown/kit/prose/model',
+      '@milkdown/kit/prose/view',
+      '@milkdown/kit/prose/inputrules',
+      '@milkdown/kit/utils',
+      'katex',
+    ],
+  },
 });

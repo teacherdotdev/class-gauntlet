@@ -3,6 +3,7 @@
   // answered, then the answer with how many chose each (never who). At the
   // end, the Report: the class's results per question, and each student's
   // results behind a button, since the board is on show to the class.
+  import Rich from '../rich/Rich.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
   import TimerRing from '../components/TimerRing.svelte';
   import { host } from '../host.svelte';
@@ -27,14 +28,14 @@
   {#if q}
     <section class="question">
       <div class="head">
-        <h1 class="prompt">{q.prompt}</h1>
+        <h1 class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></h1>
         {#if v.phase === 'QUESTION'}<TimerRing deadline={s.deadline} totalMs={s.settings.timerSeconds * 1000} size={110} />{/if}
       </div>
       <div class="choices" class:four={q.choices.length === 4}>
         {#each q.choices as text, i (i)}
           <AnswerBlock
             index={i}
-            {text}
+            {text} rich={q.rich?.choices[i]}
             big
             state={q.correct === null ? 'idle' : i === q.correct ? 'correct' : 'faded'}
             count={q.counts ? q.counts[i] : null}
@@ -48,7 +49,7 @@
           <button class="quiet" onclick={() => host.runClassic((e) => e.lock())}>Show the answer now</button>
         {:else}
           <p class="status">
-            <strong>{pct(q.counts?.[q.correct ?? 0] ?? 0, q.answered)}%</strong> got it right{#if q.explanation} · {q.explanation}{/if}
+            <strong>{pct(q.counts?.[q.correct ?? 0] ?? 0, q.answered)}%</strong> got it right{#if q.explanation} · <Rich rich={q.rich?.explanation} text={q.explanation} />{/if}
           </p>
           <button class="go" onclick={() => host.runClassic((e) => e.next())}>{q.number < q.total ? 'Next question ▸' : 'See the report ▸'}</button>
         {/if}
@@ -146,6 +147,7 @@
     justify-content: space-between;
   }
   .prompt {
+    --picture-max: 38vh;
     font-family: var(--serif);
     font-size: clamp(1.8rem, 4vw, 3.2rem);
     line-height: 1.2;

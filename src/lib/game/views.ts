@@ -1,5 +1,6 @@
 import { standings, type Standing } from './engine';
 import type { EndReason, GameResult, Help, HelpResult, Phase, Role, ScoreDelta, Session } from './types';
+import { richShown, type RichQuestion } from '../rich/text';
 
 /**
  * What a screen is allowed to see. The projector gets the public view; each
@@ -48,6 +49,8 @@ export type View = {
     /** Hidden on the projector and from The One while the class answers. */
     prompt: string | null;
     choices: string[] | null;
+    /** The words' Rich Text, when they have any; only while they're shown, with the explanation once revealed. */
+    rich: RichQuestion | null;
     answered: number;
     eligible: number;
     /** Who has answered (never what they chose), for the crowd on the big screen. */
@@ -153,6 +156,7 @@ export function buildView(
             index: active.index,
             prompt: promptVisible ? active.question.prompt : null,
             choices: promptVisible ? active.question.choices : null,
+            rich: richShown(active.question, promptVisible, !!revealed),
             answered: active.answers.length,
             eligible: active.eligible.length,
             answeredIds: active.answers.map((a) => a.playerId),

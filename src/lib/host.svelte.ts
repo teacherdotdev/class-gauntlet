@@ -14,6 +14,8 @@ import { recordOf } from './history/record';
 import { gameHistory } from './history/store.svelte';
 import { library } from './questions/store.svelte';
 import { joinUrl, newRoomCode, type HostMessage, type StudentMessage } from './protocol';
+import { pictureFile } from './rich/pictures.svelte';
+import { picturesIn } from './rich/text';
 
 /**
  * The teacher's tab is the game. It holds a room address on the matchmaking
@@ -83,6 +85,7 @@ class HostRoom {
 
   #peer: Peer | null = null;
   #connections = new Map<string, DataConnection>();
+  #picturesSent = new WeakMap<DataConnection, Set<string>>();
   #ticker = 0;
   #reclaimTries = 0;
   #broadcastQueued = false;
@@ -325,20 +328,32 @@ class HostRoom {
     });
   }
 
+  /** Sends a device the pictures its view shows that it hasn't had yet. */
+  #sendPictures(connection: DataConnection, view: unknown) {
+    let sent = this.#picturesSent.get(connection);
+    if (!sent) this.#picturesSent.set(connection, (sent = new Set()));
+    for (const hash of picturesIn(view)) {
+      if (sent.has(hash)) continue;
+      sent.add(hash);
+      void pictureFile(hash).then((file) => {
+        if (file) this.#send(connection, { type: 'picture', hash, mime: file.type, bytes: file.bytes });
+      });
+    }
+  }
+
   #broadcast() {
     const engine = this.#room;
     if (!engine) return;
     const now = Date.now();
     for (const [playerId, connection] of this.#connections) {
-      this.#send(connection, {
-        type: 'view',
-        view:
-          engine instanceof PerilEngine
-            ? buildPerilView(engine.session, { now, viewerId: playerId })
-            : engine instanceof ClassicEngine
-              ? buildClassicView(engine.session, { now, viewerId: playerId })
-              : buildView(engine.session, { now, pauseReason: engine.pauseReason, viewerId: playerId }),
-      });
+      const view =
+        engine instanceof PerilEngine
+          ? buildPerilView(engine.session, { now, viewerId: playerId })
+          : engine instanceof ClassicEngine
+            ? buildClassicView(engine.session, { now, viewerId: playerId })
+            : buildView(engine.session, { now, pauseReason: engine.pauseReason, viewerId: playerId });
+      this.#sendPictures(connection, view);
+      this.#send(connection, { type: 'view', view });
     }
   }
 

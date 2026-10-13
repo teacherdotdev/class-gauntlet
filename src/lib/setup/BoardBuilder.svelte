@@ -3,6 +3,7 @@
   // Tiles on the right. Drag one onto a Tile, drag a whole list onto a
   // Column's title, or click a Tile and then a question. Clicking a filled
   // Tile shows its question, to swap or take off.
+  import Rich from '../rich/Rich.svelte';
   import {
     addColumn,
     clearTile,
@@ -137,9 +138,9 @@
     {#if shown && shownQuestion}
       <div class="card" role="dialog" aria-label="Tile question">
         <p class="where">{titleOf(shown.column)} · {(shown.row + 1) * 100}</p>
-        <p class="prompt">{shownQuestion.prompt}</p>
+        <div class="prompt"><Rich rich={shownQuestion.rich?.prompt} text={shownQuestion.prompt} /></div>
         <ol type="A">
-          {#each shownQuestion.choices as choice, i (i)}<li class:correct={i === shownQuestion.correct}>{choice}</li>{/each}
+          {#each shownQuestion.choices as choice, i (i)}<li class:correct={i === shownQuestion.correct}><Rich rich={shownQuestion.rich?.choices[i]} text={choice} /></li>{/each}
         </ol>
         <div class="actions">
           <button class="btn-ghost" onclick={() => ((selected = shown), (shown = null))}>Swap question</button>
@@ -324,6 +325,7 @@
     font-size: 0.85rem;
   }
   .prompt {
+    --picture-max: 10rem;
     font-family: var(--serif);
     font-weight: 700;
     font-size: 1.1rem;

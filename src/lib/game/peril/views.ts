@@ -1,4 +1,5 @@
 import type { PerilPhase, PerilSession } from './types';
+import { richShown, type RichQuestion } from '../../rich/text';
 
 /**
  * What a Peril! screen may see. The projector gets the public view; each
@@ -45,6 +46,8 @@ export type PerilView = {
     /** Hidden while a Treasure Trove's Wager is set. */
     prompt: string | null;
     choices: string[] | null;
+    /** The words' Rich Text, when they have any; only while they're shown, with the explanation once revealed. */
+    rich: RichQuestion | null;
     /** Who is answering now: a Team's or a student's name. */
     answering: string | null;
     buzzer: string | null;
@@ -170,6 +173,7 @@ export function buildPerilView(
             treasureTrove: tile.treasureTrove,
             prompt: s.phase === 'WAGERING' ? null : tile.question.prompt,
             choices: s.phase === 'WAGERING' ? null : tile.question.choices,
+            rich: richShown(tile.question, s.phase !== 'WAGERING', !!revealed),
             answering: nameOf(open.answering),
             buzzer: open.buzzer
               ? (s.players.find((p) => p.id === open.buzzer)?.nickname ?? null)

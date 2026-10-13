@@ -22,6 +22,9 @@ _Avoid_: Question set, deck, quiz
 A concept a question covers, as Question Commons names it. A question can have several, and a Topic gathers questions from across Question Banks.
 _Avoid_: Tag, category
 
+**Rich Text**:
+A question's words with formatting, math and pictures, in the shape Question Commons uses. Every question also keeps them as plain text, for search, spreadsheets and History. A picture lives in the teacher's browser and is sent to each phone that needs it.
+
 **History**:
 The record, kept in the teacher's browser, of every finished Session: when, which Game Mode, and how each student or Team placed.
 

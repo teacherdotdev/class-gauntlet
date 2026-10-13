@@ -26,6 +26,8 @@ export type HostMessage =
   /** The device can't join; `forget` means its saved seat is no good. */
   | { type: 'denied'; message: string; forget: boolean }
   | { type: 'view'; view: View | PerilView | ClassicView }
+  /** A picture the view shows, sent once to each device before it's needed. */
+  | { type: 'picture'; hash: string; mime: string; bytes: ArrayBuffer | Uint8Array }
   | { type: 'notice'; message: string }
   | { type: 'removed' }
   | { type: 'ping' };

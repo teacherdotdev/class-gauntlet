@@ -2,11 +2,14 @@
   // One answer as a big coloured block (heraldic tinctures + a shape). On a
   // phone it is the button; on the teacher's screen it shows the answer and,
   // after the reveal, how many chose it.
+  import Rich from '../rich/Rich.svelte';
+  import type { RichText } from '../rich/text';
   import Shape from './Shape.svelte';
 
   let {
     index,
     text = '',
+    rich = null,
     state = 'idle',
     count = null,
     total = 0,
@@ -16,6 +19,7 @@
   }: {
     index: number;
     text?: string;
+    rich?: RichText | null;
     state?: 'idle' | 'chosen' | 'correct' | 'wrong' | 'faded';
     count?: number | null;
     total?: number;
@@ -43,7 +47,7 @@
     <span class="bar" style="height: {total ? Math.max(6, (100 * count) / total) : 6}%" aria-hidden="true"></span>
   {/if}
   <span class="mark"><Shape {index} size={big ? 40 : 30} /></span>
-  <span class="text">{text}</span>
+  <span class="text"><Rich {rich} {text} /></span>
   {#if state === 'correct'}<span class="tick" aria-label="right answer">✓</span>{/if}
   {#if state === 'wrong'}<span class="tick" aria-label="not the answer">✗</span>{/if}
   {#if count !== null}<span class="count">{count}</span>{/if}
@@ -84,6 +88,8 @@
   .text {
     position: relative;
     flex: 1;
+    min-width: 0;
+    --picture-max: 7rem;
     font-family: var(--serif);
     font-weight: 700;
     font-size: 1.2rem;

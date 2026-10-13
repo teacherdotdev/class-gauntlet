@@ -14,8 +14,11 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.55.0",
+    "@milkdown/crepe": "^7.21.1",
+    "@milkdown/kit": "^7.21.1",
     "@teacherdotdev/question-commons": "0.3.1",
     "canvas-confetti": "^1.9.4",
+    "katex": "^0.18.0",
     "peerjs": "^1.5.5",
     "qrcode-generator": "^2.0.4"
   },

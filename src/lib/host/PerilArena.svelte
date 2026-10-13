@@ -2,6 +2,7 @@
   // Peril! on the projector: the Board of Tiles, then the open Tile with its
   // buzzers, and the standings when every Tile is played. The teacher can
   // pick a Tile for whoever has Control at any time.
+  import Rich from '../rich/Rich.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
   import TimerRing from '../components/TimerRing.svelte';
   import { emptyDraft, onBoard } from '../game/peril/draft';
@@ -103,12 +104,12 @@
           {v.solo ? 'is' : 'are'} setting a wager… {v.solo ? '' : `${open.wagered}/${open.voters}`}
         </p>
       {:else}
-        <h1 class="prompt">{open.prompt}</h1>
+        <h1 class="prompt"><Rich rich={open.rich?.prompt} text={open.prompt ?? ''} /></h1>
         <div class="choices">
           {#each open.choices ?? [] as text, i (i)}
             <AnswerBlock
               index={i}
-              {text}
+              {text} rich={open.rich?.choices[i]}
               big
               state={open.correct === null
                 ? 'idle'
@@ -144,7 +145,7 @@
           {/if}
         </p>
         {#if v.phase === 'REVEAL' && open.explanation}<p class="explanation">
-            {open.explanation}
+            <Rich rich={open.rich?.explanation} text={open.explanation} />
           </p>{/if}
       {/if}
 
@@ -335,6 +336,7 @@
     color: #ffd76a;
   }
   .prompt {
+    --picture-max: 38vh;
     font-family: var(--serif);
     font-size: clamp(1.8rem, 4vw, 3.2rem);
     line-height: 1.2;
