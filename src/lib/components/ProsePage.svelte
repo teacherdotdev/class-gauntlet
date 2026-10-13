@@ -9,7 +9,7 @@
 <div class="frame">
   <header class="nav">
     <Brand />
-    <a class="host" href="/host">Host a game →</a>
+    <a class="host" href="/games">Host a game →</a>
   </header>
   <main class="prose">
     <header>

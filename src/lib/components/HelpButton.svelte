@@ -31,7 +31,7 @@
     <li><strong>Pick your questions</strong>: write a set, paste one from a spreadsheet, or use the sample.</li>
     <li><strong>Host a game</strong> on the computer connected to your projector. Keep that tab open while you play.</li>
     <li><strong>Students join</strong> on their phones with the PIN or the QR code. No accounts.</li>
-    <li><strong>The spotlight picks a challenger</strong>. The class answers first, then the challenger. Tap Next between questions.</li>
+    <li><strong>The spotlight picks a champion</strong>. The class answers first, then the champion. Tap Next between questions.</li>
   </ol>
 
   <h3>Get in touch</h3>

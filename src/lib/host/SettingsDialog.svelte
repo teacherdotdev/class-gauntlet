@@ -1,6 +1,7 @@
 <script lang="ts">
-  // The rules, behind the gear button.
+  // The rules, behind the gear button. The next game starts from them too.
   import { host } from '../host.svelte';
+  import { saveChampionRules } from './setup';
 
   let dialog: HTMLDialogElement;
   let timerSeconds = $state(20);
@@ -18,11 +19,7 @@
   function save(event: SubmitEvent) {
     event.preventDefault();
     if (host.run((e) => e.updateSettings({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions }))) {
-      try {
-        localStorage.setItem('classgauntlet:prefs', JSON.stringify({ ...JSON.parse(localStorage.getItem('classgauntlet:prefs') ?? '{}'), timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions }));
-      } catch {
-        /* fine */
-      }
+      saveChampionRules({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions });
       dialog.close();
     }
   }
@@ -34,18 +31,18 @@
     <label class="field">Seconds to answer
       <input type="number" min="5" max="120" bind:value={timerSeconds} />
     </label>
-    <label class="field">Chances for the challenger
+    <label class="field">Chances for the champion
       <input type="number" min="1" max="5" bind:value={strikes} />
       <small>Wrong answers they can survive. Applies from the next round.</small>
     </label>
     <label class="field">Questions per round
       <input type="number" min="1" max="50" bind:value={questionsPerGame} />
-      <small>Each new challenger gets the next questions in the set.</small>
+      <small>Each new champion gets the next questions in the set.</small>
     </label>
     <label class="check"><input type="checkbox" bind:checked={shuffleQuestions} /> Shuffle the questions</label>
     <label class="check">
       <input type="checkbox" bind:checked={momentumEnabled} />
-      <span><strong>On a Roll</strong>: quick answers without a lifeline win the challenger a chance back (once a round)</span>
+      <span><strong>On a Roll</strong>: quick answers without a lifeline win the champion a chance back (once a round)</span>
     </label>
     {#if host.notice}<p class="problem">{host.notice}</p>{/if}
     <div class="actions">

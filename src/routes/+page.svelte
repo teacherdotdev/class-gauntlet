@@ -23,9 +23,9 @@
     <Brand />
     <nav>
       <a href="#how">How it works</a>
-      <a href="/questions">Question sets</a>
+      <a href="/banks">Question banks</a>
       <a href="/join">Join a game</a>
-      <a class="cta small" href="/host">Host a game <span aria-hidden="true">→</span></a>
+      <a class="cta small" href="/games">Host a game <span aria-hidden="true">→</span></a>
     </nav>
   </header>
 
@@ -39,7 +39,7 @@
           answering until the very last question.
         </p>
         <div class="actions">
-          <a class="cta" href="/host">Host a game <span aria-hidden="true">→</span></a>
+          <a class="cta" href="/games">Host a game <span aria-hidden="true">→</span></a>
           <form class="pin" onsubmit={join}>
             <input
               bind:value={pin}
@@ -75,8 +75,8 @@
           </li>
           <li>
             <span class="num">III</span>
-            <h3>The spotlight picks a challenger</h3>
-            <p>The class answers first. Then the challenger answers alone, with three lifelines up their sleeve.</p>
+            <h3>The spotlight picks a champion</h3>
+            <p>The class answers first. Then the champion answers alone, with three lifelines up their sleeve.</p>
           </li>
         </ol>
 
@@ -89,8 +89,8 @@
           <div>
             <h3>Nobody gets knocked out</h3>
             <p>
-              When the challenger is right, classmates who missed fall to the Comeback Crew and keep answering from there. The
-              challenger’s Prize Pot grows with every classmate they outlast.
+              When the champion is right, classmates who missed fall to the Comeback Crew and keep answering from there. The
+              champion’s Prize Pot grows with every classmate they outlast.
             </p>
           </div>
         </div>
@@ -102,11 +102,11 @@
       <h2 id="ends-heading">Three ways to win the day.</h2>
       <div class="ends">
         <article class="end gules">
-          <h3>The challenger falls</h3>
+          <h3>The champion falls</h3>
           <p>Out of chances. The class splits the Prize Pot.</p>
         </article>
         <article class="end azure">
-          <h3>The challenger survives</h3>
+          <h3>The champion survives</h3>
           <p>Every question cleared. They bank the pot, and the team still standing gets a bonus.</p>
         </article>
         <article class="end or">
@@ -132,8 +132,8 @@
           </p>
         </div>
         <div class="closer-actions">
-          <a class="cta" href="/host">Host a game <span aria-hidden="true">→</span></a>
-          <a class="cta secondary" href="/questions/edit?new=1">Write questions</a>
+          <a class="cta" href="/games">Host a game <span aria-hidden="true">→</span></a>
+          <a class="cta secondary" href="/banks/edit?new=1">Write questions</a>
         </div>
       </div>
     </section>

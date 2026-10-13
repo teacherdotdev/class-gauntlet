@@ -12,13 +12,13 @@ export type Question = {
   /** Index into `choices`. */
   correct: number;
   explanation?: string;
+  /** Concepts the question covers; a Topic gathers questions across banks. */
+  topics?: string[];
 };
 
-export type QuestionSet = {
+export type QuestionBank = {
   id: string;
   title: string;
-  subject?: string;
-  grade?: string;
   questions: Question[];
   updatedAt: number;
 };
@@ -178,6 +178,8 @@ export type Game = {
 };
 
 export type Session = {
+  /** Absent in games saved before Peril! existed. */
+  mode?: 'champion';
   version: 1;
   code: string;
   createdAt: number;

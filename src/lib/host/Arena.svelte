@@ -20,7 +20,7 @@
   const game = $derived(view.game);
   const q = $derived(view.question);
   const phase = $derived(view.phase);
-  const one = $derived(game?.one.nickname ?? 'The challenger');
+  const one = $derived(game?.one.nickname ?? 'The champion');
   const oneId = $derived(game?.one.id ?? '');
   const deadline = $derived(q?.remainingMs != null ? Date.now() + q.remainingMs : null);
   const name = (id: string) => view.roster.find((p) => p.id === id)?.nickname ?? 'Someone';
@@ -84,7 +84,7 @@
     return null;
   });
 
-  // The challenger can also stand at the front and tap their answer (or a
+  // The champion can also stand at the front and tap their answer (or a
   // lifeline) right here on the big screen instead of on their phone.
   let pollMode = $state(false);
   const frontTaps = $derived(phase === 'PHASE_B' && !view.paused && q?.oneAnswer === null);
@@ -183,16 +183,16 @@
       </ol>
       {#if phase === 'LEADERBOARD'}
         <div class="next-up">
-          <span class="label">Next challenger</span>
+          <span class="label">Next champion</span>
           {#if view.pendingNextOne}<Avatar name={view.pendingNextOne.nickname} size={40} />{/if}
-          <select bind:value={nextOne} onchange={() => host.run((e) => e.chooseNextOne(nextOne || null))} aria-label="Next challenger">
+          <select bind:value={nextOne} onchange={() => host.run((e) => e.chooseNextOne(nextOne || null))} aria-label="Next champion">
             {#each view.roster as p (p.id)}
               <option value={p.id}>{p.nickname}{p.hasBeenOne ? ' (had a turn)' : ''}</option>
             {/each}
           </select>
         </div>
       {:else}
-        <a class="btn-primary big again" href="/host" onclick={() => host.close()}>Play again</a>
+        <a class="btn-primary big again" href="/games" onclick={() => host.close()}>Play again</a>
       {/if}
     </section>
   {:else if game}
@@ -202,7 +202,7 @@
         <div class="who">
           <Avatar name={one} size={120} />
           <div>
-            <span class="label">Challenger</span>
+            <span class="label">Champion</span>
             <strong class="name">{one}</strong>
             {#if !game.one.connected}<span class="offline">offline</span>{/if}
             <div class="purse">
@@ -472,7 +472,7 @@
     color: rgb(255 250 243 / 0.75);
   }
 
-  /* Challenger versus the class */
+  /* Champion versus the class */
   .versus {
     display: grid;
     grid-template-columns: minmax(16rem, 0.9fr) auto minmax(0, 2fr);

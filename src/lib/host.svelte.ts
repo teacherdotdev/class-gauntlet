@@ -1,8 +1,18 @@
 import type { DataConnection, Peer } from 'peerjs';
 import { createPeer, keepAlive, roomPrefix } from './peer';
 import { createSession, Engine, type Result } from './game/engine';
+import { ClassicEngine, createClassicSession } from './game/classic/engine';
+import type { ClassicSession, ClassicSettings } from './game/classic/types';
+import { buildClassicView, type ClassicView } from './game/classic/views';
+import { createPerilSession, PerilEngine } from './game/peril/engine';
+import type { PerilSession, PerilSettings } from './game/peril/types';
+import { buildPerilView, type PerilView } from './game/peril/views';
+import { toBoard, type BoardDraft } from './game/peril/draft';
 import type { Question, Session, Settings } from './game/types';
 import { buildView, type View } from './game/views';
+import { recordOf } from './history/record';
+import { gameHistory } from './history/store.svelte';
+import { library } from './questions/store.svelte';
 import { joinUrl, newRoomCode, type HostMessage, type StudentMessage } from './protocol';
 
 /**
@@ -14,7 +24,10 @@ import { joinUrl, newRoomCode, type HostMessage, type StudentMessage } from './p
 
 const savedKey = 'classgauntlet:host';
 
-type Saved = { session: Session; kicked: string[] };
+type Saved = { session: Session | PerilSession | ClassicSession; kicked: string[] };
+
+/** Any Game Mode's rules; they all share joining, leaving and the clock. */
+type RoomEngine = Engine | PerilEngine | ClassicEngine;
 
 export function savedGame(): Saved | null {
   try {
@@ -49,11 +62,20 @@ export type RoomStatus =
   | 'closed';
 
 class HostRoom {
+  /** Champion's rules, while a Champion Session runs. */
   engine: Engine | null = null;
+  /** Peril!'s rules, while a Peril! Session runs. */
+  perilEngine: PerilEngine | null = null;
+  /** Classic's rules, while a Classic Session runs. */
+  classicEngine: ClassicEngine | null = null;
   /** A copy of the session for the teacher's screens; replaced on every change. */
   session = $state.raw<Session | null>(null);
+  peril = $state.raw<PerilSession | null>(null);
+  classic = $state.raw<ClassicSession | null>(null);
   /** The public view, as the projector sees it. */
   view = $state.raw<View | null>(null);
+  perilView = $state.raw<PerilView | null>(null);
+  classicView = $state.raw<ClassicView | null>(null);
   status = $state<RoomStatus>('opening');
   problem = $state('');
   /** Last command the teacher tried that was not allowed. */
@@ -65,8 +87,18 @@ class HostRoom {
   #reclaimTries = 0;
   #broadcastQueued = false;
 
+  get #room(): RoomEngine | null {
+    return this.engine ?? this.perilEngine ?? this.classicEngine;
+  }
+
+  /** True while either Game Mode has a room open. */
+  get active() {
+    return !!(this.session ?? this.peril ?? this.classic);
+  }
+
   get joinUrl() {
-    return this.session ? joinUrl(location.origin, this.session.code) : '';
+    const code = (this.session ?? this.peril ?? this.classic)?.code;
+    return code ? joinUrl(location.origin, code) : '';
   }
 
   /** Starts a new game room with the chosen questions. */
@@ -75,15 +107,30 @@ class HostRoom {
     this.#start(new Engine(session));
   }
 
+  /** Starts a Peril! room; the board the teacher built is dealt when they start. */
+  createPeril(input: { settings: Partial<PerilSettings>; draft: BoardDraft }) {
+    const session = createPerilSession({ code: newRoomCode(), settings: input.settings });
+    session.draft = input.draft;
+    this.#start(new PerilEngine(session));
+  }
+
+  /** Starts a Classic room with the chosen questions. */
+  createClassic(input: { title: string; questions: Question[]; settings: Partial<ClassicSettings> }) {
+    this.#start(new ClassicEngine(createClassicSession({ code: newRoomCode(), ...input })));
+  }
+
   resume(saved: Saved) {
-    const engine = new Engine(saved.session);
+    const s = saved.session;
+    const engine = s.mode === 'peril' ? new PerilEngine(s) : s.mode === 'classic' ? new ClassicEngine(s) : new Engine(s);
     for (const id of saved.kicked) engine.kicked.add(id);
     this.#start(engine);
   }
 
-  #start(engine: Engine) {
+  #start(engine: RoomEngine) {
     this.close();
-    this.engine = engine;
+    if (engine instanceof PerilEngine) this.perilEngine = engine;
+    else if (engine instanceof ClassicEngine) this.classicEngine = engine;
+    else this.engine = engine;
     this.#reclaimTries = 0;
     this.#ticker = window.setInterval(() => this.#tick(), 200);
     this.#commit();
@@ -101,6 +148,11 @@ class HostRoom {
   static readonly beats: Partial<Record<string, number>> = { PHASE_A_LOCKED: 2200, ONE_LOCKED: 2600 };
 
   #tick() {
+    const other = this.perilEngine ?? this.classicEngine;
+    if (other) {
+      if (other.tick()) this.#commit();
+      return;
+    }
     const engine = this.engine;
     if (!engine) return;
     let changed = engine.tick();
@@ -118,11 +170,11 @@ class HostRoom {
   }
 
   async #open() {
-    if (!this.engine) return;
-    const engine = this.engine;
+    const engine = this.#room;
+    if (!engine) return;
     this.status = this.#reclaimTries > 0 ? 'reclaiming' : 'opening';
     const peer = await createPeer(roomPrefix + engine.session.code);
-    if (this.engine !== engine) {
+    if (this.#room !== engine) {
       peer.destroy();
       return;
     }
@@ -173,7 +225,7 @@ class HostRoom {
     connection.on('open', () => keepAlive(connection));
     connection.on('data', (data) => {
       const message = data as StudentMessage;
-      const engine = this.engine;
+      const engine = this.#room;
       if (!engine || !message || typeof message !== 'object') return;
       if (message.type === 'ping') return;
       if (message.type === 'hello') {
@@ -210,7 +262,17 @@ class HostRoom {
         return;
       }
       let result: Result;
-      if (message.type === 'answer') result = engine.answer(playerId, message.attemptId, message.choice);
+      if (engine instanceof PerilEngine) {
+        if (message.type === 'buzz') result = engine.buzz(playerId);
+        else if (message.type === 'vote') result = engine.answer(playerId, Number(message.choice));
+        else if (message.type === 'wager') result = engine.wager(playerId, Number(message.amount));
+        else if (message.type === 'pick') result = engine.pickTile(Number(message.column), Number(message.row), playerId);
+        else if (message.type === 'choose-team') result = engine.chooseTeam(playerId, String(message.teamId));
+        else return;
+      } else if (engine instanceof ClassicEngine) {
+        if (message.type === 'classic-answer') result = engine.answer(playerId, Number(message.choice));
+        else return;
+      } else if (message.type === 'answer') result = engine.answer(playerId, message.attemptId, message.choice);
       else if (message.type === 'one-answer') result = engine.oneAnswer(playerId, message.attemptId, message.choice);
       else if (message.type === 'help')
         result =
@@ -226,7 +288,7 @@ class HostRoom {
     connection.on('close', () => {
       if (!playerId || this.#connections.get(playerId) !== connection) return;
       this.#connections.delete(playerId);
-      this.engine?.setConnected(playerId, false);
+      this.#room?.setConnected(playerId, false);
       this.#commit();
     });
     connection.on('error', () => connection.close());
@@ -238,10 +300,18 @@ class HostRoom {
 
   /** Saves the game and, on the next tick, sends every screen its view. */
   #commit() {
-    const engine = this.engine;
+    const engine = this.#room;
     if (!engine) return;
-    this.session = structuredClone(engine.session);
-    this.view = buildView(engine.session, { now: Date.now(), pauseReason: engine.pauseReason });
+    if (engine instanceof PerilEngine) {
+      this.peril = structuredClone(engine.session);
+      this.perilView = buildPerilView(engine.session, { now: Date.now() });
+    } else if (engine instanceof ClassicEngine) {
+      this.classic = structuredClone(engine.session);
+      this.classicView = buildClassicView(engine.session, { now: Date.now() });
+    } else {
+      this.session = structuredClone(engine.session);
+      this.view = buildView(engine.session, { now: Date.now(), pauseReason: engine.pauseReason });
+    }
     try {
       localStorage.setItem(savedKey, JSON.stringify({ session: engine.session, kicked: [...engine.kicked] } satisfies Saved));
     } catch {
@@ -256,13 +326,18 @@ class HostRoom {
   }
 
   #broadcast() {
-    const engine = this.engine;
+    const engine = this.#room;
     if (!engine) return;
     const now = Date.now();
     for (const [playerId, connection] of this.#connections) {
       this.#send(connection, {
         type: 'view',
-        view: buildView(engine.session, { now, pauseReason: engine.pauseReason, viewerId: playerId }),
+        view:
+          engine instanceof PerilEngine
+            ? buildPerilView(engine.session, { now, viewerId: playerId })
+            : engine instanceof ClassicEngine
+              ? buildClassicView(engine.session, { now, viewerId: playerId })
+              : buildView(engine.session, { now, pauseReason: engine.pauseReason, viewerId: playerId }),
       });
     }
   }
@@ -276,9 +351,44 @@ class HostRoom {
     return result.ok;
   }
 
+  /** Runs a Peril! teacher command, the same way. */
+  runPeril(command: (engine: PerilEngine) => Result): boolean {
+    if (!this.perilEngine) return false;
+    const result = command(this.perilEngine);
+    this.notice = result.ok ? '' : result.message;
+    if (result.ok) this.#commit();
+    return result.ok;
+  }
+
+  /** Runs a Classic teacher command, the same way. */
+  runClassic(command: (engine: ClassicEngine) => Result): boolean {
+    if (!this.classicEngine) return false;
+    const result = command(this.classicEngine);
+    this.notice = result.ok ? '' : result.message;
+    if (result.ok) this.#commit();
+    return result.ok;
+  }
+
+  /** Deals the Peril! board the teacher built and starts playing it. */
+  dealPeril(draft: BoardDraft): boolean {
+    const board = toBoard(draft, $state.snapshot(library.sorted), {
+      treasureTrove: !!this.peril?.settings.treasureTrove,
+      random: Math.random,
+    });
+    return this.runPeril((engine) => {
+      const result = engine.startBoard(board);
+      if (result.ok) engine.session.draft = draft;
+      return result;
+    });
+  }
+
+  #runAny(command: (engine: RoomEngine) => Result): boolean {
+    return this.perilEngine ? this.runPeril(command) : this.classicEngine ? this.runClassic(command) : this.run(command);
+  }
+
   kick(playerId: string) {
     const connection = this.#connections.get(playerId);
-    if (this.run((engine) => engine.kick(playerId)) && connection) {
+    if (this.#runAny((engine) => engine.kick(playerId)) && connection) {
       this.#connections.delete(playerId);
       this.#send(connection, { type: 'removed' });
       setTimeout(() => connection.close(), 300);
@@ -287,7 +397,9 @@ class HostRoom {
 
   /** Ends the room for good and lets the matchmaking server forget it. */
   finish() {
-    this.run((engine) => engine.endSession());
+    const session = this.#room?.session;
+    if (session?.players.length) gameHistory.add(recordOf(structuredClone(session), Date.now()));
+    this.#runAny((engine) => engine.endSession());
     // Give the final standings a moment to reach every screen, then hang up.
     setTimeout(() => {
       forgetSavedGame();
@@ -308,8 +420,14 @@ class HostRoom {
   close() {
     this.#hangUp();
     this.engine = null;
+    this.perilEngine = null;
+    this.classicEngine = null;
     this.session = null;
     this.view = null;
+    this.peril = null;
+    this.perilView = null;
+    this.classic = null;
+    this.classicView = null;
   }
 }
 

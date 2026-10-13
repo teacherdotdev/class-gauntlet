@@ -4,6 +4,8 @@
   import Avatar from '#lib/components/Avatar.svelte';
   import Gauntlet from '#lib/components/Gauntlet.svelte';
   import LifelineIcon from '#lib/components/LifelineIcon.svelte';
+  import ClassicPhone from '#lib/components/ClassicPhone.svelte';
+  import PerilPhone from '#lib/components/PerilPhone.svelte';
   import Shape from '#lib/components/Shape.svelte';
   import { NICKNAME_MAX } from '#lib/game/engine.ts';
   import type { Help } from '#lib/game/types.ts';
@@ -46,7 +48,7 @@
   const q = $derived(view?.question ?? null);
   const phase = $derived(view?.phase);
   const iAmOne = $derived(me?.role === 'one');
-  const one = $derived(view?.game?.one.nickname ?? 'The challenger');
+  const one = $derived(view?.game?.one.nickname ?? 'The champion');
   const letter = (i: number | null | undefined) => (i == null ? '' : String.fromCharCode(65 + i));
   const tincture = (i: number | null | undefined) => ['var(--gules)', 'var(--azure)', 'var(--or)', 'var(--vert)'][i ?? 0];
 
@@ -82,10 +84,10 @@
   });
 </script>
 
-<svelte:head><title>{view ? `${student.nickname} · Class Gauntlet` : 'Join a game · Class Gauntlet'}</title></svelte:head>
+<svelte:head><title>{view || student.perilView || student.classicView ? `${student.nickname} · Class Gauntlet` : 'Join a game · Class Gauntlet'}</title></svelte:head>
 
 <main class="phone {mood}" style="--chosen: {tincture(iAmOne ? q?.oneAnswer : me?.myAnswer)}">
-  {#if !view || !me || student.status === 'idle' || student.status === 'denied' || student.status === 'connecting' || student.status === 'removed'}
+  {#if ((!view || !me) && !student.perilView?.me && !student.classicView?.me) || student.status === 'idle' || student.status === 'denied' || student.status === 'connecting' || student.status === 'removed'}
     <section class="join">
       <div class="art"><Gauntlet size={120} /></div>
       <h1>Class Gauntlet</h1>
@@ -132,12 +134,38 @@
       {/if}
       <p class="fine"><a href="/about">About</a> · <a href="/privacy">Privacy</a></p>
     </section>
-  {:else}
+  {:else if student.classicView?.me}
+    {#if student.status === 'reconnecting'}<p class="banner">Reconnecting… your answers are safe.</p>{/if}
+    <ClassicPhone view={student.classicView} {seconds} />
+    {#if student.classicView.phase === 'LOBBY' || student.classicView.phase === 'ENDED'}
+      <footer class="leave">
+        {#if confirmLeave}
+          <button class="link" onclick={() => student.leave()}>Yes, leave</button>
+          <button class="link" onclick={() => (confirmLeave = false)}>Stay</button>
+        {:else}
+          <button class="link" onclick={() => (confirmLeave = true)}>Leave game</button>
+        {/if}
+      </footer>
+    {/if}
+  {:else if student.perilView?.me}
+    {#if student.status === 'reconnecting'}<p class="banner">Reconnecting… your points are safe.</p>{/if}
+    <PerilPhone view={student.perilView} {seconds} />
+    {#if student.perilView.phase === 'LOBBY' || student.perilView.phase === 'ENDED'}
+      <footer class="leave">
+        {#if confirmLeave}
+          <button class="link" onclick={() => student.leave()}>Yes, leave</button>
+          <button class="link" onclick={() => (confirmLeave = false)}>Stay</button>
+        {:else}
+          <button class="link" onclick={() => (confirmLeave = true)}>Leave game</button>
+        {/if}
+      </footer>
+    {/if}
+  {:else if view && me}
     <header class="strip">
       <Avatar name={me.nickname} size={30} />
       <span class="me">{me.nickname}</span>
       {#if me.role === 'crowd'}<span class="tag">Comeback Crew</span>{/if}
-      {#if iAmOne}<span class="tag gold">Challenger</span>{/if}
+      {#if iAmOne}<span class="tag gold">Champion</span>{/if}
       <span class="spacer"></span>
       {#if phase === 'PHASE_A' && seconds !== null && !iAmOne}<span class="secs">{seconds}</span>{/if}
       <span class="pts">{me.points}</span>
@@ -253,7 +281,7 @@
           <p class="rank">#{me.rank}</p>
           <h1>{me.points} points</h1>
           {#if phase === 'LEADERBOARD' && view.pendingNextOne?.id === me.id}
-            <p class="crew-note">You’re the next challenger!</p>
+            <p class="crew-note">You’re the next champion!</p>
           {:else}
             <p>{phase === 'ENDED' ? 'Thanks for playing!' : 'Next round coming up.'}</p>
           {/if}

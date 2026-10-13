@@ -1,6 +1,6 @@
 <script lang="ts">
   // The whole class in the dark; a spotlight wanders over the crowd and lands
-  // on the new challenger. Used when a round begins.
+  // on the new champion. Used when a round begins.
   import { untrack } from 'svelte';
   import Avatar from './Avatar.svelte';
   import type { CrowdMember } from './Crowd.svelte';
@@ -25,7 +25,7 @@
     return { x: r.left - outer.left + r.width / 2, y: r.top - outer.top + r.height / 2 };
   }
 
-  // Restart only when the challenger changes, not every time someone joins.
+  // Restart only when the champion changes, not every time someone joins.
   $effect(() => {
     const target = targetId;
     return untrack(() => sweep(target));

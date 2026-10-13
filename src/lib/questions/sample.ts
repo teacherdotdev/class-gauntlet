@@ -1,4 +1,4 @@
-import type { QuestionSet } from '../game/types';
+import type { QuestionBank } from '../game/types';
 
 /**
  * The sample deck from the original open-source project (Apache 2.0),
@@ -19,12 +19,10 @@ const rows: [string, string[], number, string][] = [
 
 export const sampleSetId = 'sample-grade7-math';
 
-export function sampleSet(): QuestionSet {
+export function sampleSet(): QuestionBank {
   return {
     id: sampleSetId,
     title: 'Sample: Grade 7 Math Review',
-    subject: 'Math',
-    grade: '7',
     questions: rows.map(([prompt, choices, correct, explanation], i) => ({
       id: `sample-${i + 1}`,
       prompt,

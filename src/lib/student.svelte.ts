@@ -1,6 +1,8 @@
 import type { DataConnection, Peer } from 'peerjs';
 import { createPeer, keepAlive, roomPrefix } from './peer';
 import type { Help } from './game/types';
+import type { ClassicView } from './game/classic/views';
+import type { PerilView } from './game/peril/views';
 import type { View } from './game/views';
 import type { HostMessage, StudentMessage } from './protocol';
 
@@ -48,7 +50,9 @@ class StudentLink {
   code = $state('');
   nickname = $state('');
   view = $state.raw<View | null>(null);
-  /** When the class's answers lock, on this device's clock. */
+  perilView = $state.raw<PerilView | null>(null);
+  classicView = $state.raw<ClassicView | null>(null);
+  /** When the class's answers lock (Peril!: when the running clock ends), on this device's clock. */
   deadline = $state<number | null>(null);
   problem = $state('');
   notice = $state('');
@@ -150,11 +154,16 @@ class StudentLink {
         this.problem = '';
         this.slow = false;
         break;
-      case 'view':
-        this.view = message.view;
-        this.deadline = message.view.question?.remainingMs != null ? Date.now() + message.view.question.remainingMs : null;
-        if (message.view.phase === 'ENDED') saveSeat(this.code, null);
+      case 'view': {
+        const view = message.view;
+        const remainingMs = view.mode === 'peril' ? view.open?.remainingMs : view.question?.remainingMs;
+        this.view = view.mode === 'champion' ? view : null;
+        this.perilView = view.mode === 'peril' ? view : null;
+        this.classicView = view.mode === 'classic' ? view : null;
+        this.deadline = remainingMs != null ? Date.now() + remainingMs : null;
+        if (view.phase === 'ENDED') saveSeat(this.code, null);
         break;
+      }
       case 'denied':
         if (message.forget) {
           // The saved seat is from an old game; try again as a new player if we have a name.
@@ -200,6 +209,30 @@ class StudentLink {
     this.#send({ type: 'help', help, ...(choice === undefined ? {} : { choice }) });
   }
 
+  buzz() {
+    this.#send({ type: 'buzz' });
+  }
+
+  vote(choice: number) {
+    this.#send({ type: 'vote', choice });
+  }
+
+  wager(amount: number) {
+    this.#send({ type: 'wager', amount });
+  }
+
+  pick(column: number, row: number) {
+    this.#send({ type: 'pick', column, row });
+  }
+
+  classicAnswer(choice: number) {
+    this.#send({ type: 'classic-answer', choice });
+  }
+
+  chooseTeam(teamId: string) {
+    this.#send({ type: 'choose-team', teamId });
+  }
+
   /** Leaves the game for good: the teacher's roster drops this student. */
   leave() {
     this.#send({ type: 'leave' });
@@ -218,6 +251,8 @@ class StudentLink {
     if (resetStatus) {
       this.status = 'idle';
       this.view = null;
+      this.perilView = null;
+      this.classicView = null;
     }
   }
 }

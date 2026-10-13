@@ -11,8 +11,11 @@ async function joinAs(browser: Browser, pin: string, nickname: string): Promise<
 
 test('a full game over peer-to-peer: join, spotlight, answers, lifeline, reveal, reconnects', async ({ browser }) => {
   const teacher = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
-  await teacher.goto('/host');
-  await teacher.getByRole('button', { name: /Sample: Grade 7 Math Review/ }).click();
+  await teacher.goto('/games');
+  await teacher.getByRole('button', { name: 'Champion', exact: true }).click();
+  await teacher.getByRole('link', { name: /Host Champion/ }).click();
+  await teacher.getByRole('button', { name: /^Add all/ }).click();
+  await teacher.getByRole('button', { name: /Open the lobby/ }).click();
   await expect(teacher.locator('.lobby .status')).toHaveCount(0, { timeout: 30_000 });
   const pin = (await teacher.locator('.pin strong').textContent())!.replace(/\D/g, '');
   expect(pin).toMatch(/^\d{6}$/);
@@ -24,7 +27,7 @@ test('a full game over peer-to-peer: join, spotlight, answers, lifeline, reveal,
 
   // Choose Ana, then start: the spotlight sweeps and lands on her.
   await teacher.getByRole('button', { name: 'Ana' }).click();
-  await teacher.getByRole('button', { name: 'Make them the challenger' }).click();
+  await teacher.getByRole('button', { name: 'Make them the champion' }).click();
   await teacher.getByRole('button', { name: 'Start' }).click();
   await expect(teacher.getByRole('heading', { name: 'Ana takes up the gauntlet!' })).toBeVisible();
   await expect(ana.getByRole('heading', { name: 'The spotlight is on you!' })).toBeVisible();
@@ -63,6 +66,8 @@ test('a full game over peer-to-peer: join, spotlight, answers, lifeline, reveal,
   // The teacher reloads: the game resumes and everyone reconnects.
   await teacher.reload();
   await teacher.getByRole('button', { name: 'Resume' }).click();
+  await teacher.waitForURL(/\/host$/);
+  await expect(teacher.getByRole('button', { name: /Next question/ })).toBeVisible();
   await expect(teacher.locator('.conn')).toHaveCount(0, { timeout: 90_000 });
   await expect(teacher.locator('.crowd li.away')).toHaveCount(0, { timeout: 30_000 });
   await expect(teacher.locator('.offline')).toHaveCount(0, { timeout: 30_000 });
@@ -78,8 +83,11 @@ test('a full game over peer-to-peer: join, spotlight, answers, lifeline, reveal,
 // moment it appears; Begin must still show up, round after round.
 test('Begin appears when the teacher’s computer prefers reduced motion', async ({ browser }) => {
   const teacher = await (await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })).newPage();
-  await teacher.goto('/host');
-  await teacher.getByRole('button', { name: /Sample: Grade 7 Math Review/ }).click();
+  await teacher.goto('/games');
+  await teacher.getByRole('button', { name: 'Champion', exact: true }).click();
+  await teacher.getByRole('link', { name: /Host Champion/ }).click();
+  await teacher.getByRole('button', { name: /^Add all/ }).click();
+  await teacher.getByRole('button', { name: /Open the lobby/ }).click();
   await expect(teacher.locator('.lobby .status')).toHaveCount(0, { timeout: 30_000 });
   const pin = (await teacher.locator('.pin strong').textContent())!.replace(/\D/g, '');
   await joinAs(browser, pin, 'Ana');

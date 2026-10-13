@@ -17,10 +17,13 @@ test('screens', async ({ browser }) => {
   test.setTimeout(240_000);
   const t = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   const shot = (p: typeof t, name: string, fullPage = false) => p.screenshot({ path: `${dir}/${name}.png`, fullPage });
-  await t.goto('/host');
-  await t.getByRole('heading', { name: 'Choose your questions' }).waitFor();
+  await t.goto('/games');
+  await t.getByRole('heading', { name: 'Games' }).waitFor();
   await shot(t, '01-host-picker');
-  await t.getByRole('button', { name: /Sample: Grade 7 Math Review/ }).click();
+  await t.getByRole('button', { name: 'Champion', exact: true }).click();
+  await t.getByRole('link', { name: /Host Champion/ }).click();
+  await t.getByRole('button', { name: /^Add all/ }).click();
+  await t.getByRole('button', { name: /Open the lobby/ }).click();
   await expect(t.locator('.lobby .status')).toHaveCount(0, { timeout: 30_000 });
   await shot(t, '02-lobby-empty');
   const pin = (await t.locator('.pin strong').textContent())!.replace(/\D/g, '');
@@ -37,7 +40,7 @@ test('screens', async ({ browser }) => {
   await shot(kids[1], '05-phone-lobby');
 
   await t.getByRole('button', { name: 'Ana', exact: true }).click();
-  await t.getByRole('button', { name: 'Make them the challenger' }).click();
+  await t.getByRole('button', { name: 'Make them the champion' }).click();
   await t.getByRole('button', { name: 'Start' }).click();
   await t.waitForTimeout(1200);
   await shot(t, '06-sweep-mid');

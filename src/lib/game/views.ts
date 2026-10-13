@@ -18,6 +18,7 @@ export type RosterEntry = {
 };
 
 export type View = {
+  mode: 'champion';
   seq: number;
   code: string;
   setTitle: string;
@@ -106,6 +107,7 @@ export function buildView(
   const revealed = s.phase === 'REVEAL' ? (game?.reveal ?? null) : null;
 
   const view: View = {
+    mode: 'champion',
     seq: s.seq,
     code: s.code,
     setTitle: s.setTitle,

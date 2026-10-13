@@ -2,7 +2,7 @@ import type { EndReason, Phase, Role } from './game/types';
 
 /** The friendly names the original game used on screen. */
 export const roleName: Record<Role, string> = {
-  one: 'Spotlight Player',
+  one: 'Champion',
   mob: 'The Class',
   crowd: 'Comeback Crew',
 };

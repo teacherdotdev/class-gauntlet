@@ -1,36 +1,59 @@
 <script lang="ts">
-  // The teacher's one screen, meant for the projector: pick questions, then
-  // the lobby, then the game itself.
+  // The teacher's screen for the projector: the lobby, then the game itself.
+  // Games are chosen and set up in the workspace (/games).
   import { onDestroy } from 'svelte';
   import { host } from '#lib/host.svelte.ts';
   import Arena from '#lib/host/Arena.svelte';
+  import ClassicArena from '#lib/host/ClassicArena.svelte';
+  import ClassicLobby from '#lib/host/ClassicLobby.svelte';
   import Lobby from '#lib/host/Lobby.svelte';
-  import Picker from '#lib/host/Picker.svelte';
+  import PerilArena from '#lib/host/PerilArena.svelte';
+  import PerilLobby from '#lib/host/PerilLobby.svelte';
+  import { goto } from '$app/navigation';
   import SettingsDialog from '#lib/host/SettingsDialog.svelte';
   import { spacedCode } from '#lib/protocol.ts';
 
-  let settings: SettingsDialog;
+  let settings = $state<SettingsDialog>();
   onDestroy(() => host.close());
+  // Nothing hosted: choose a game first.
+  $effect(() => {
+    if (!host.active) void goto('/games', { replaceState: true });
+  });
 
   // Closing this tab ends the game for everyone, so ask first.
   function beforeUnload(event: BeforeUnloadEvent) {
-    if (host.session && host.session.phase !== 'ENDED' && host.session.players.length > 0) event.preventDefault();
+    const session = host.session ?? host.peril ?? host.classic;
+    if (session && session.phase !== 'ENDED' && session.players.length > 0) event.preventDefault();
   }
 </script>
 
 <svelte:window onbeforeunload={beforeUnload} />
 <svelte:head>
-  <title>{host.session ? `PIN ${spacedCode(host.session.code)}` : 'Host a game'} · Class Gauntlet</title>
+  <title>{host.active ? `PIN ${spacedCode((host.session ?? host.peril ?? host.classic)!.code)}` : 'Host a game'} · Class Gauntlet</title>
 </svelte:head>
 
-{#if !host.session}
-  <Picker />
+{#if host.classic}
+  <div class="hall">
+    {#if host.classic.phase === 'LOBBY'}
+      <ClassicLobby />
+    {:else if host.classicView}
+      <ClassicArena />
+    {/if}
+  </div>
+{:else if host.peril}
+  <div class="hall">
+    {#if host.peril.phase === 'LOBBY'}
+      <PerilLobby />
+    {:else if host.perilView}
+      <PerilArena />
+    {/if}
+  </div>
 {:else}
   <div class="hall">
-    {#if host.session.phase === 'LOBBY'}
-      <Lobby onsettings={() => settings.open()} />
+    {#if host.session?.phase === 'LOBBY'}
+      <Lobby onsettings={() => settings?.open()} />
     {:else if host.view}
-      <Arena onsettings={() => settings.open()} />
+      <Arena onsettings={() => settings?.open()} />
     {/if}
   </div>
   <SettingsDialog bind:this={settings} />

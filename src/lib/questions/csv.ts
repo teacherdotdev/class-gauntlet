@@ -1,4 +1,4 @@
-import type { QuestionSet } from '../game/types';
+import type { QuestionBank } from '../game/types';
 
 /**
  * Question sets as spreadsheets: what Export writes, the template, and the
@@ -11,17 +11,15 @@ function csvCell(value: string): string {
 }
 
 /**
- * One or more sets as a spreadsheet. The set title, subject and grade ride
- * along on every row, so importing the file gives back the same sets.
+ * One or more banks as a spreadsheet. Each bank's title rides along on every
+ * row, so importing the file gives back the same banks.
  */
-export function exportCsv(sets: QuestionSet | QuestionSet[]): string {
-  const header = ['set title', 'subject', 'grade', 'question', 'A', 'B', 'C', 'D', 'answer', 'explanation'];
+export function exportCsv(sets: QuestionBank | QuestionBank[]): string {
+  const header = ['bank title', 'question', 'A', 'B', 'C', 'D', 'answer', 'explanation', 'topics'];
   const lines = [sets].flat().flatMap((set) =>
     set.questions.map((q) =>
       [
         set.title,
-        set.subject ?? '',
-        set.grade ?? '',
         q.prompt,
         q.choices[0] ?? '',
         q.choices[1] ?? '',
@@ -29,6 +27,7 @@ export function exportCsv(sets: QuestionSet | QuestionSet[]): string {
         q.choices[3] ?? '',
         String.fromCharCode(65 + q.correct),
         q.explanation ?? '',
+        (q.topics ?? []).join(', '),
       ]
         .map(csvCell)
         .join(','),
@@ -50,30 +49,31 @@ export function downloadCsv(name: string, text: string) {
 }
 
 export const templateCsv = [
-  'question,A,B,C,D,answer,explanation',
-  'What is 7 × 8?,54,56,64,,B,Seven eights are fifty-six.',
-  'Which planet is closest to the Sun?,Venus,Earth,Mercury,Mars,C,Mercury orbits closest to the Sun.',
-  'A synonym for “happy” is…,joyful,angry,tired,,A,',
+  'question,A,B,C,D,answer,explanation,topics',
+  'What is 7 × 8?,54,56,64,,B,Seven eights are fifty-six.,multiplication',
+  'Which planet is closest to the Sun?,Venus,Earth,Mercury,Mars,C,Mercury orbits closest to the Sun.,"planets, solar system"',
+  'A synonym for “happy” is…,joyful,angry,tired,,A,,',
 ].join('\n') + '\n';
 
 /** For a teacher to paste into an AI chat with a worksheet or PDF, so the reply pastes straight into the importer. */
 export const aiInstructions = `Turn the attached material into a multiple-choice question set for Class Gauntlet, a classroom review game.
 
 Reply with only a CSV inside one code block, with this exact header row:
-question,A,B,C,D,answer,explanation
+question,A,B,C,D,answer,explanation,topics
 
 Rules:
 - One question per row. Keep each question short enough to read aloud.
 - Give 2 to 4 answer choices in columns A–D. Leave D (or C and D) empty if there are fewer choices. No two choices in a row may be the same.
 - "answer" is the letter (A, B, C or D) of the one correct choice. Exactly one choice must be correct.
 - "explanation" is optional: one short sentence on why the answer is right.
+- "topics" names the concepts a question covers, separated by commas (such as "fractions, word problems"). Reuse the same few topics across questions on the same concept.
 - Wrap any cell that contains a comma or a quotation mark in double quotes, and double any quotation marks inside it ("like ""this"""). Don't put line breaks inside cells.
 - Write math with plain characters such as − × ÷ ² √ π ≤ ≥, not LaTeX.
 - Only include questions that are already multiple choice, with their answer choices as written. True/false questions count: use True and False as choices A and B. Skip every other kind of question (short answer, fill in the blank, essay, matching) instead of converting it.
 - Don't number the questions and don't add any other columns or text.
 
 Example:
-question,A,B,C,D,answer,explanation
-What is 7 × 8?,54,56,64,,B,Seven eights are fifty-six.
-"Which is a mammal: shark, whale, or trout?",Shark,Whale,Trout,,B,Whales breathe air and feed their young milk.
+question,A,B,C,D,answer,explanation,topics
+What is 7 × 8?,54,56,64,,B,Seven eights are fifty-six.,multiplication
+"Which is a mammal: shark, whale, or trout?",Shark,Whale,Trout,,B,Whales breathe air and feed their young milk.,"animals, mammals"
 `;

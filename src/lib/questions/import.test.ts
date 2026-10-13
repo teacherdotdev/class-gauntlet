@@ -15,7 +15,7 @@ test('imports the simple template, named after the file, and round-trips through
   expect(again.sets[0].questions.map((q) => q.prompt)).toEqual(sets[0].questions.map((q) => q.prompt));
 });
 
-test('imports the original format, grouped by set title, with subject and grade', async () => {
+test('imports the original format, one bank per set title (its subject and grade are left behind)', async () => {
   const csv = [
     'set title,subject,grade,question,choices,correct,explanation',
     'Integers,Math,7,What is 9 minus 15?,"[""6"",""-6"",""-24""]",1,Because.',
@@ -23,10 +23,8 @@ test('imports the original format, grouped by set title, with subject and grade'
   ].join('\n');
   const { sets, errors } = await importQuestionFile(file('old.csv', csv));
   expect(errors).toEqual([]);
-  expect(sets.map((s) => [s.title, s.subject, s.grade])).toEqual([
-    ['Integers', 'Math', '7'],
-    ['Ratios', 'Math', '7'],
-  ]);
+  expect(sets.map((s) => s.title)).toEqual(['Integers', 'Ratios']);
+  expect(sets[0]).not.toHaveProperty('subject');
   expect(sets[0].questions[0].correct).toBe(1);
 });
 
@@ -38,14 +36,16 @@ test('a tab-separated paste, with the answer given as text, skips a row whose ch
   expect(errors).toEqual(['Question 2 (line 3): two answer choices are the same.']);
 });
 
-test('exporting several sets keeps titles, subjects and grades on re-import', async () => {
+test('exporting several banks keeps each bank’s title on re-import, under a bank title column', async () => {
   const [first] = (await importQuestionFile(file('Facts.csv', templateCsv))).sets;
-  const second = { ...first, id: 'b', title: 'Second, with comma', subject: 'Science', grade: '5' };
-  const { sets, errors } = await importQuestionFile(file('backup.csv', exportCsv([first, second])));
+  const second = { ...first, id: 'b', title: 'Second, with comma' };
+  const csv = exportCsv([first, second]);
+  expect(csv.split('\n')[0]).toBe('bank title,question,A,B,C,D,answer,explanation,topics');
+  const { sets, errors } = await importQuestionFile(file('backup.csv', csv));
   expect(errors).toEqual([]);
-  expect(sets.map((s) => [s.title, s.subject, s.grade, s.questions.length])).toEqual([
-    ['Facts', undefined, undefined, 3],
-    ['Second, with comma', 'Science', '5', 3],
+  expect(sets.map((s) => [s.title, s.questions.length])).toEqual([
+    ['Facts', 3],
+    ['Second, with comma', 3],
   ]);
   expect(sets[1].questions.map((q) => [q.choices, q.correct, q.explanation])).toEqual(
     first.questions.map((q) => [q.choices, q.correct, q.explanation]),
@@ -137,4 +137,21 @@ test('a Google Forms printout says why its questions can’t come in: it never s
   expect(sets).toEqual([]);
   expect(errors).toHaveLength(10);
   expect(errors[0]).toContain('Google Forms printouts don’t show which answer is right');
+});
+
+test('topics survive export and re-import, and other formats’ topics come through', async () => {
+  const [set] = (await importQuestionFile(file('Facts.csv', templateCsv))).sets;
+  set.questions[0].topics = ['multiplication', 'times tables'];
+  set.questions[1].topics = ['World War II'];
+  const again = await importQuestionFile(file('Facts.csv', exportCsv(set)));
+  expect(again.sets[0].questions.map((q) => q.topics)).toEqual([
+    ['multiplication', 'times tables'],
+    ['World War II'],
+    undefined,
+  ]);
+
+  const gift =
+    '$CATEGORY: $course$/Social Studies/Geography\n\nCapital of France? {=Paris ~Rome ~Oslo}\n';
+  const moodle = await importQuestionFile(file('quiz.gift', gift));
+  expect(moodle.sets.flatMap((s) => s.questions.map((q) => q.topics))).toEqual([['Geography']]);
 });

@@ -7,7 +7,7 @@ import {
   type QuestionType,
   type RichText,
 } from '@teacherdotdev/question-commons';
-import type { Question, QuestionSet } from '../game/types';
+import type { Question, QuestionBank } from '../game/types';
 import { randomId } from '../game/engine';
 
 /**
@@ -23,7 +23,7 @@ import { randomId } from '../game/engine';
 export const questionFileTypes = QUESTION_FILE_EXTENSIONS.join(',');
 
 /** `errors` are the questions (or the file) that were left out. */
-export type ImportResult = { sets: QuestionSet[]; errors: string[]; formatLabel?: string };
+export type ImportResult = { sets: QuestionBank[]; errors: string[]; formatLabel?: string };
 
 const typeNames: Record<Exclude<QuestionType, 'multiple-choice' | 'multiple-answer'>, string> = {
   'true-false': 'true/false',
@@ -62,7 +62,7 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
     return { sets: [], errors: [message] };
   }
   const errors = reading.issues.map((issue) => issue.message);
-  const sets: QuestionSet[] = [];
+  const sets: QuestionBank[] = [];
   for (const bank of reading.banks) {
     const questions: Question[] = [];
     for (const q of bank.questions) {
@@ -78,14 +78,13 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
         choices: q.choices.map((c) => plainText(c.content).trim()),
         correct: q.choices.findIndex((c) => c.correct),
         explanation: (q.explanation && plainText(q.explanation).trim()) || undefined,
+        ...(q.topics?.length ? { topics: q.topics } : {}),
       });
     }
     if (!questions.length) continue;
     sets.push({
       id: randomId(),
       title: bank.name,
-      subject: bank.extras?.subject || undefined,
-      grade: bank.extras?.grade || undefined,
       questions,
       updatedAt: Date.now(),
     });
