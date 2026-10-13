@@ -31,6 +31,9 @@ The record, kept in the teacher's browser, of every finished Session: when, whic
 **Backup**:
 One file holding everything the teacher's browser keeps: Question Banks, History, and each Game Mode's remembered rules and setup. Importing a Backup replaces it all. A Game Mode's rules are set while hosting it and remembered for next time; Settings holds only the Backup.
 
+**Connection Check**:
+The light above Settings: whether this computer's network can reach the matchmaking server and open the live connection a game keeps to it (green), can host but not reach the relay (amber), or can't host (red). Pressing it shows each step and, when something's wrong, a connection report to copy into an email. Not to be confused with Classic's Report.
+
 ### Champion
 
 **Champion**:

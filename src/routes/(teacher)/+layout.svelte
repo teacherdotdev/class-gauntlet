@@ -1,9 +1,10 @@
 <script lang="ts">
   // The teacher's workspace: Games, Question banks and History up top,
-  // Settings at the foot of the nav, the page full width beside it. Hosting a
+  // the connection light and Settings at the foot of the nav, the page full width beside it. Hosting a
   // game leaves the workspace for the projector screen.
   import { page } from '$app/state';
   import Brand from '#lib/components/Brand.svelte';
+  import ConnectionStatus from '#lib/connection/ConnectionStatus.svelte';
   import { CirclePlay, History, LibraryBig, Settings } from '@lucide/svelte';
 
   let { children } = $props();
@@ -19,6 +20,7 @@
       <a class:active={at('/history')} href="/history"><History size={20} /> History</a>
     </nav>
     <nav class="foot" aria-label="Settings">
+      <ConnectionStatus />
       <a class:active={at('/settings')} href="/settings"><Settings size={20} /> Settings</a>
     </nav>
   </aside>

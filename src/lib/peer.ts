@@ -16,8 +16,8 @@ export const roomPrefix = 'classgauntlet-';
  * .env.local to point at another one, e.g. a local `peerjs` server while testing.
  */
 const env = import.meta.env;
-const hosts = env.VITE_PEER_HOST ? [env.VITE_PEER_HOST as string] : ['peer.classgauntlet.com', 'peer.teacher.dev', 'peer.happyhallways.com'];
-const server = {
+export const hosts = env.VITE_PEER_HOST ? [env.VITE_PEER_HOST as string] : ['peer.classgauntlet.com', 'peer.teacher.dev', 'peer.happyhallways.com'];
+export const server = {
   port: Number(env.VITE_PEER_PORT || 443),
   path: (env.VITE_PEER_PATH as string) || '/peerjs',
   secure: env.VITE_PEER_SECURE !== 'false',
