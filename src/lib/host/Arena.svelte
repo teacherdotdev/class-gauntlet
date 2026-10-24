@@ -87,7 +87,7 @@
   const next = $derived.by(() => {
     if (phase === 'BETWEEN') return landed ? { label: 'Begin', run: () => host.run((e) => e.openQuestion()) } : null;
     if (phase === 'PHASE_A' && q?.peeking) return { label: 'Show the class', run: () => host.run((e) => e.showToClass()) };
-    if (phase === 'PHASE_A') return { label: 'Skip', run: () => host.run((e) => e.lock()), quiet: true };
+    if (phase === 'PHASE_A') return { label: 'Skip', run: () => host.run((e) => e.skip()), quiet: true };
     if (phase === 'PHASE_A_LOCKED' && noDevices) return { label: `Show ${one} the question`, run: () => host.run((e) => e.showToOne()) };
     if (phase === 'REVEAL')
       return { label: game?.result ? 'Scoreboard' : 'Next question', run: () => host.run((e) => e.next()) };
