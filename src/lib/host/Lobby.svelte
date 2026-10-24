@@ -1,7 +1,7 @@
 <script lang="ts">
   // The waiting room, on the projector: where to go, the PIN, a QR code, and
   // everyone who has joined. Tap a name to choose the first champion or to
-  // remove them. On the Big Screen nobody joins: the teacher names the first
+  // remove them. With no student devices nobody joins: the teacher names the first
   // champion here.
   import Avatar from '../components/Avatar.svelte';
   import Gauntlet from '../components/Gauntlet.svelte';
@@ -16,7 +16,7 @@
   let menuFor = $state('');
   let champion = $state('Champion 1');
   const start = () =>
-    s.bigScreen ? host.run((e) => e.startBigScreenRound(champion)) : host.run((e) => e.startGame());
+    s.noDevices ? host.run((e) => e.startNamedRound(champion)) : host.run((e) => e.startGame());
 
   function choose(id: string) {
     host.run((e) => e.chooseNextOne(s.pendingNextOneId === id ? null : id));
@@ -25,22 +25,22 @@
 </script>
 
 <div class="lobby">
-  {#if !s.bigScreen}<JoinBanner />{/if}
+  {#if !s.noDevices}<JoinBanner />{/if}
 
   <div class="bar">
     <button class="icon-btn" onclick={onsettings} aria-label="Settings" title="Settings">
       <Settings size={22} />
     </button>
-    {#if !s.bigScreen}<span class="count"><strong>{players.length}</strong> {players.length === 1 ? 'player' : 'players'}</span>{/if}
+    {#if !s.noDevices}<span class="count"><strong>{players.length}</strong> {players.length === 1 ? 'player' : 'players'}</span>{/if}
     <span class="title">{s.setTitle}</span>
-    <button class="start" disabled={s.bigScreen ? !champion.trim() : players.length < 2} onclick={start}>
+    <button class="start" disabled={s.noDevices ? !champion.trim() : players.length < 2} onclick={start}>
       Start
     </button>
   </div>
 
   {#if host.notice}<p class="notice" role="alert">{host.notice}</p>{/if}
 
-  {#if s.bigScreen}
+  {#if s.noDevices}
     <form class="empty" onsubmit={(event) => { event.preventDefault(); start(); }}>
       <Gauntlet size={170} />
       <label class="first">

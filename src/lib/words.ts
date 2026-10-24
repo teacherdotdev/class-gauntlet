@@ -32,8 +32,8 @@ export function endHeadline(reason: EndReason, one: string, bankedByOne: number)
   return `${one} cleared every question!`;
 }
 
-export function endDetail(reason: EndReason, one: string, teamWinners: number, bigScreen = false): string {
-  if (bigScreen) return reason === 'flameout' ? `${one} ran out of chances. The class takes the pot.` : `${one} banks the Prize Pot.`;
+export function endDetail(reason: EndReason, one: string, teamWinners: number, noDevices = false): string {
+  if (noDevices) return reason === 'flameout' ? `${one} ran out of chances. The class takes the pot.` : `${one} banks the Prize Pot.`;
   if (reason === 'flameout')
     return teamWinners > 0
       ? `${one} ran out of chances. ${teamWinners} ${teamWinners === 1 ? 'classmate splits' : 'classmates split'} the pot.`

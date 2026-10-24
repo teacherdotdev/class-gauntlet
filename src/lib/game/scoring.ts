@@ -117,12 +117,12 @@ export function scoreReveal(input: {
 }
 
 /**
- * Champion on the Big Screen, where the Champion plays against the Class
+ * Champion with no student devices, where the Champion plays against the Class
  * Majority instead of each classmate. A right answer grows the Prize Pot, by
  * more when the Class Majority was wrong; a wrong one costs a chance. Out of
  * chances, The Class wins the pot; clear every question and the Champion banks it.
  */
-export function scoreBigScreenReveal(input: {
+export function scoreNoDevicesReveal(input: {
   players: ScoringPlayer[];
   classId: string;
   /** Null when the teacher skipped the class's vote. */
@@ -149,7 +149,7 @@ export function scoreBigScreenReveal(input: {
   };
 
   const classWrong = input.classMajority !== null && input.classMajority !== input.correct;
-  const bankDelta = input.oneCorrect ? (classWrong ? s.bigScreenBeatClassPot : s.bigScreenPot) : 0;
+  const bankDelta = input.oneCorrect ? (classWrong ? s.noDevicesBeatClassPot : s.noDevicesPot) : 0;
   const bank = input.bank + bankDelta;
   const strikes = input.oneCorrect ? input.strikes : Math.max(0, input.strikes - 1);
   const endReason: EndReason | null =

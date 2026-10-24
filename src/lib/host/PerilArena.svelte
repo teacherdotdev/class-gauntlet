@@ -1,7 +1,7 @@
 <script lang="ts">
   // Peril! on the projector: the Board of Tiles, then the open Tile with its
   // buzzers, and the standings when every Tile is played. The teacher can
-  // pick a Tile for whoever has Control at any time. On the Big Screen the
+  // pick a Tile for whoever has Control at any time. With no student devices the
   // teacher also taps the Team that buzzed, the answer it gave, and a
   // Treasure Trove's Wager.
   import Rich from '../rich/Rich.svelte';
@@ -31,7 +31,7 @@
   );
   const running = $derived(['BUZZING', 'ANSWERING', 'WAGERING'].includes(v.phase) && s.open?.deadline != null);
 
-  // Big Screen: what the Team with a Treasure Trove may wager.
+  // No student devices: what the Team with a Treasure Trove may wager.
   const maxWager = $derived(Math.max(v.teams.find((t) => t.id === s.open?.answering)?.points ?? 0, 500));
   let wagerAmount = $state(100);
   $effect(() => {
@@ -48,7 +48,7 @@
       if (v.phase === 'READING') host.runPeril((e) => e.armBuzzers());
       else if (v.phase === 'REVEAL') host.runPeril((e) => e.next());
       else return;
-    } else if (!v.bigScreen) return;
+    } else if (!v.noDevices) return;
     else if (v.phase === 'BUZZING' && key.kind === 'number') {
       const team = v.teams[key.index];
       if (!team) return;
@@ -80,7 +80,7 @@
 
 <div class="arena">
   <header class="top">
-    {#if v.bigScreen}<span class="pin">Big Screen</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
+    {#if v.noDevices}<span class="pin">No student devices</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
     <ol class="scores">
       {#each scores as c (c.id)}
         <li class:control={v.control?.id === c.id}>
@@ -132,7 +132,7 @@
           />{/if}
       </div>
 
-      {#if v.phase === 'WAGERING' && v.bigScreen}
+      {#if v.phase === 'WAGERING' && v.noDevices}
         <h1 class="prompt">💰 Treasure Trove!</h1>
         <p class="status"><strong>{open.answering}</strong>, how much will you wager? (up to {maxWager})</p>
         <div class="team-picks">
@@ -158,7 +158,7 @@
               index={i}
               {text} rich={open.rich?.choices[i]}
               big
-              onclick={v.bigScreen && v.phase === 'ANSWERING' ? () => host.runPeril((e) => e.answerFor(i)) : undefined}
+              onclick={v.noDevices && v.phase === 'ANSWERING' ? () => host.runPeril((e) => e.answerFor(i)) : undefined}
               state={open.correct === null
                 ? 'idle'
                 : i === open.correct
@@ -172,9 +172,9 @@
         <p class="status">
           {#if v.phase === 'READING'}
             Read it together, then arm the buzzers.
-          {:else if v.phase === 'BUZZING' && v.bigScreen}
+          {:else if v.phase === 'BUZZING' && v.noDevices}
             <strong>Buzz now!</strong> Who was first?
-          {:else if v.phase === 'ANSWERING' && v.bigScreen}
+          {:else if v.phase === 'ANSWERING' && v.noDevices}
             {#if open.wager !== null}<strong>{open.answering}</strong> wagered {open.wager}.{/if}
             <strong>{open.answering}</strong>, what’s your answer? Tap the one they say.
           {:else if v.phase === 'BUZZING'}
@@ -202,7 +202,7 @@
           </p>{/if}
       {/if}
 
-      {#if v.phase === 'BUZZING' && v.bigScreen}
+      {#if v.phase === 'BUZZING' && v.noDevices}
         <div class="team-picks">
           {#each v.teams as team, i (team.id)}
             <button class="pick" disabled={!!s.open?.lockedOut.includes(team.id)} onclick={() => host.runPeril((e) => e.buzzFor(team.id))}>

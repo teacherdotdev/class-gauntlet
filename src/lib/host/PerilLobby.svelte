@@ -1,7 +1,7 @@
 <script lang="ts">
   // Peril!'s waiting room. In Teams, every Team is a banner students gather
   // under: drag a name (or tap it) to move them, rename a Team by typing on
-  // its name, or shuffle everyone. On the Big Screen the Teams are just names:
+  // its name, or shuffle everyone. With no student devices the Teams are just names:
   // nobody joins, and the class splits up in the room.
   import Avatar from '../components/Avatar.svelte';
   import { teamName } from '../game/peril/names';
@@ -63,20 +63,20 @@
 {/snippet}
 
 <div class="lobby">
-  {#if !s.bigScreen}<JoinBanner />{/if}
+  {#if !s.noDevices}<JoinBanner />{/if}
 
   <div class="bar">
     <button class="icon-btn" onclick={() => rules.open()} aria-label="Rules" title="Rules"><Settings size={22} /></button>
-    {#if !s.bigScreen}<span class="count"
+    {#if !s.noDevices}<span class="count"
       ><strong>{s.players.length}</strong> {s.players.length === 1 ? 'player' : 'players'}</span
     >{/if}
     <span class="title">Peril! · {solo ? 'Solo' : `${s.teams.length} teams`}</span>
-    {#if !solo && !s.bigScreen}<button
+    {#if !solo && !s.noDevices}<button
         class="ghost"
         disabled={!s.players.length}
         onclick={() => host.runPeril((e) => e.shuffleTeams())}>Shuffle teams</button
       >{/if}
-    <button class="start" disabled={!s.players.length && !s.bigScreen} onclick={start}>Start</button>
+    <button class="start" disabled={!s.players.length && !s.noDevices} onclick={start}>Start</button>
   </div>
   {#if host.notice}<p class="notice" role="alert">{host.notice}</p>{/if}
 
@@ -86,7 +86,7 @@
     </ul>
     {#if !s.players.length}<p class="waiting">Waiting for players…</p>{/if}
   {:else}
-    {#if s.bigScreen}
+    {#if s.noDevices}
       <p class="split">Split the class into these teams. When a team buzzes (a hand, a bell, a shout), you tap who was first.</p>
     {/if}
     {#if unassigned.length}

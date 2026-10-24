@@ -24,11 +24,11 @@
   // Closing this tab ends the game for everyone, so ask first.
   function beforeUnload(event: BeforeUnloadEvent) {
     const session = host.session ?? host.peril ?? host.classic;
-    const underway = session?.bigScreen ? session.phase !== 'LOBBY' : !!session?.players.length;
+    const underway = session?.noDevices ? session.phase !== 'LOBBY' : !!session?.players.length;
     if (session && session.phase !== 'ENDED' && underway) event.preventDefault();
   }
   const title = $derived(
-    !host.active ? 'Host a game' : host.bigScreen ? 'Big Screen' : `PIN ${spacedCode((host.session ?? host.peril ?? host.classic)!.code)}`,
+    !host.active ? 'Host a game' : host.noDevices ? 'No student devices' : `PIN ${spacedCode((host.session ?? host.peril ?? host.classic)!.code)}`,
   );
 </script>
 

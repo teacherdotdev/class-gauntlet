@@ -22,7 +22,7 @@ import { picturesIn } from './rich/text';
  * server, accepts a direct connection from each student, runs the rules, and
  * sends every device the view it is allowed to see. The whole game is saved to
  * local storage after every change, so reloading the tab picks up where it was.
- * A Big Screen game never touches the network: nobody joins, and the teacher
+ * A game with no student devices never touches the network: nobody joins, and the teacher
  * enters every choice on this screen.
  */
 
@@ -64,7 +64,7 @@ export type RoomStatus =
   | 'failed'
   /** The teacher ended the game; the room is gone but the final standings stay up. */
   | 'closed'
-  /** Played on the Big Screen: no room on the matchmaking server at all. */
+  /** Played with no student devices: no room on the matchmaking server at all. */
   | 'local';
 
 class HostRoom {
@@ -103,9 +103,9 @@ class HostRoom {
     return !!(this.session ?? this.peril ?? this.classic);
   }
 
-  /** True while a Big Screen game is up. */
-  get bigScreen() {
-    return !!(this.session ?? this.peril ?? this.classic)?.bigScreen;
+  /** True while a game with no student devices is up. */
+  get noDevices() {
+    return !!(this.session ?? this.peril ?? this.classic)?.noDevices;
   }
 
   get joinUrl() {
@@ -114,20 +114,20 @@ class HostRoom {
   }
 
   /** Starts a new game room with the chosen questions. */
-  create(input: { setTitle: string; questions: Question[]; settings: Partial<Settings>; bigScreen?: boolean }) {
+  create(input: { setTitle: string; questions: Question[]; settings: Partial<Settings>; noDevices?: boolean }) {
     const session = createSession({ code: newRoomCode(), ...input });
     this.#start(new Engine(session));
   }
 
   /** Starts a Peril! room; the board the teacher built is dealt when they start. */
-  createPeril(input: { settings: Partial<PerilSettings>; draft: BoardDraft; bigScreen?: boolean }) {
-    const session = createPerilSession({ code: newRoomCode(), settings: input.settings, bigScreen: input.bigScreen });
+  createPeril(input: { settings: Partial<PerilSettings>; draft: BoardDraft; noDevices?: boolean }) {
+    const session = createPerilSession({ code: newRoomCode(), settings: input.settings, noDevices: input.noDevices });
     session.draft = input.draft;
     this.#start(new PerilEngine(session));
   }
 
   /** Starts a Classic room with the chosen questions. */
-  createClassic(input: { title: string; questions: Question[]; settings: Partial<ClassicSettings>; bigScreen?: boolean }) {
+  createClassic(input: { title: string; questions: Question[]; settings: Partial<ClassicSettings>; noDevices?: boolean }) {
     this.#start(new ClassicEngine(createClassicSession({ code: newRoomCode(), ...input })));
   }
 
@@ -146,7 +146,7 @@ class HostRoom {
     this.#reclaimTries = 0;
     this.#ticker = window.setInterval(() => this.#tick(), 200);
     this.#commit();
-    if (engine.session.bigScreen) this.status = 'local';
+    if (engine.session.noDevices) this.status = 'local';
     else void this.#open();
   }
 
@@ -174,8 +174,8 @@ class HostRoom {
       this.#phaseSeen = phase;
       this.#phaseSince = Date.now();
     }
-    // On the Big Screen the teacher says when the champion may look again.
-    const beat = phase === 'PHASE_A_LOCKED' && engine.session.bigScreen ? undefined : HostRoom.beats[phase];
+    // With no student devices the teacher says when the champion may look again.
+    const beat = phase === 'PHASE_A_LOCKED' && engine.session.noDevices ? undefined : HostRoom.beats[phase];
     if (beat !== undefined && Date.now() - this.#phaseSince >= beat) {
       const result = phase === 'PHASE_A_LOCKED' ? engine.showToOne() : engine.reveal();
       changed ||= result.ok;
@@ -424,8 +424,8 @@ class HostRoom {
   /** Ends the room for good and lets the matchmaking server forget it. */
   finish() {
     const session = this.#room?.session;
-    // Classic on the Big Screen has nobody to place; Peril!'s Teams there have no members.
-    const placed = session?.players.length || (session?.mode === 'peril' && session.bigScreen && session.phase !== 'LOBBY');
+    // Classic with no student devices has nobody to place; Peril!'s Teams there have no members.
+    const placed = session?.players.length || (session?.mode === 'peril' && session.noDevices && session.phase !== 'LOBBY');
     if (session && placed) gameHistory.add(recordOf(structuredClone(session), Date.now()));
     this.#runAny((engine) => engine.endSession());
     // Give the final standings a moment to reach every screen, then hang up.

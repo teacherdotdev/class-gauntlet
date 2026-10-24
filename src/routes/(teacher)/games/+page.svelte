@@ -1,6 +1,7 @@
 <script lang="ts">
   // Every Game Mode as title art, the way Blooket lays out its games. Click
-  // one to see what it's like on the right, then Host it.
+  // one to see what it's like on the right, then Host it, on students'
+  // devices or, with Use student devices switched off, without them.
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import ChampionLogo from '#lib/components/art/ChampionLogo.svelte';
@@ -9,6 +10,8 @@
   import SuggestGameDialog from '#lib/components/SuggestGameDialog.svelte';
   import { Plus } from '@lucide/svelte';
   import { forgetSavedGame, host, savedGame } from '#lib/host.svelte.ts';
+  import { playsWithoutDevices, savePlaysWithoutDevices } from '#lib/host/setup.ts';
+  import StudentDevices from '#lib/setup/StudentDevices.svelte';
   import { plural } from '#lib/words.ts';
 
   type Mode = 'champion' | 'peril' | 'classic';
@@ -55,6 +58,16 @@
   let suggest: SuggestGameDialog;
   const game = $derived(games.find((g) => g.id === chosen)!);
   const bank = page.url.searchParams.get('bank');
+
+  // Each Game Mode remembers whether it was last hosted with no student devices.
+  let noDevices = $state(playsWithoutDevices('champion'));
+  $effect.pre(() => {
+    noDevices = playsWithoutDevices(chosen);
+  });
+  const setNoDevices = (on: boolean) => {
+    noDevices = on;
+    savePlaysWithoutDevices(chosen, on);
+  };
 
   let saved = $state.raw(savedGame());
   const resumable = $derived(saved && saved.session.phase !== 'ENDED' ? saved : null);
@@ -117,6 +130,7 @@
       <div><dt>Players</dt><dd>{game.players}</dd></div>
       <div><dt>Length</dt><dd>{game.length}</dd></div>
     </dl>
+    <StudentDevices bind:noDevices={() => noDevices, setNoDevices} />
     <a class="host" href="/games/{game.id}{bank ? `?bank=${bank}` : ''}">Host {game.name} ▸</a>
   </aside>
 </div>

@@ -3,7 +3,7 @@
   // answered, then the answer with how many chose each (never who). At the
   // end, the Report: the class's results per question, and each student's
   // results behind a button, since the board is on show to the class.
-  // On the Big Screen there are no answers to count: the timer is a guide,
+  // With no student devices there are no answers to count: the timer is a guide,
   // the teacher shows the answer, and the end is just the end.
   import Rich from '../rich/Rich.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
@@ -18,7 +18,7 @@
   const q = $derived(v.question);
   let showStudents = $state(false);
   const pct = (n: number, of: number) => (of ? Math.round((100 * n) / of) : 0);
-  // On the Big Screen nothing moves when time's up, so watch the clock here.
+  // With no student devices nothing moves when time's up, so watch the clock here.
   let now = $state(Date.now());
   $effect(() => {
     const timer = setInterval(() => (now = Date.now()), 250);
@@ -38,7 +38,7 @@
 
 <div class="arena">
   <header class="top">
-    {#if v.bigScreen}<span class="pin">Big Screen</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
+    {#if v.noDevices}<span class="pin">No student devices</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
     <span class="where">{q ? `Question ${q.number} of ${q.total}` : v.title}</span>
     {#if v.phase !== 'ENDED'}<button class="quiet" onclick={() => host.finish()}>End game</button>{/if}
   </header>
@@ -57,19 +57,19 @@
             {text} rich={q.rich?.choices[i]}
             big
             state={q.correct === null ? 'idle' : i === q.correct ? 'correct' : 'faded'}
-            count={q.counts && !v.bigScreen ? q.counts[i] : null}
+            count={q.counts && !v.noDevices ? q.counts[i] : null}
             total={q.answered}
           />
         {/each}
       </div>
       <div class="foot">
-        {#if v.phase === 'QUESTION' && v.bigScreen}
+        {#if v.phase === 'QUESTION' && v.noDevices}
           <p class="status">{timeUp ? 'Time’s up! Answers up, everyone.' : 'Answer on your whiteboard or with your hand.'}</p>
           <button class="go" onclick={() => host.runClassic((e) => e.lock())}>Show the answer ▸</button>
         {:else if v.phase === 'QUESTION'}
           <p class="status"><strong>{q.answered}</strong> of {q.answering} answered</p>
           <button class="quiet" onclick={() => host.runClassic((e) => e.lock())}>Show the answer now</button>
-        {:else if v.bigScreen}
+        {:else if v.noDevices}
           <p class="status">{#if q.explanation}<Rich rich={q.rich?.explanation} text={q.explanation} />{/if}</p>
           <button class="go" onclick={() => host.runClassic((e) => e.next())}>{q.number < q.total ? 'Next question ▸' : 'Finish ▸'}</button>
         {:else}
@@ -80,7 +80,7 @@
         {/if}
       </div>
     </section>
-  {:else if v.bigScreen && (v.phase === 'REPORT' || v.phase === 'ENDED')}
+  {:else if v.noDevices && (v.phase === 'REPORT' || v.phase === 'ENDED')}
     <section class="done">
       <h1 class="big-title">That’s every question!</h1>
       <p>{plural(v.question?.total ?? s.questions.length, 'question')} reviewed together.</p>

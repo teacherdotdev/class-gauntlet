@@ -99,7 +99,7 @@
 <div class="head">
   <div>
     <h1>Question banks</h1>
-    <p class="lede">Saved in this browser. Export them to keep a backup, or share one with a colleague by link.</p>
+    <p class="lede">Saved in this browser.</p>
   </div>
   <div class="actions">
     <button class="btn-ghost" onclick={() => importer.open()}><Upload size={17} aria-hidden="true" /> Import</button>

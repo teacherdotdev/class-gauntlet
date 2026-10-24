@@ -192,12 +192,12 @@ describe('Class Gauntlet engine', () => {
   });
 });
 
-describe('Champion on the Big Screen', () => {
-  function bigScreen(settings: Partial<Settings> = {}) {
+describe('Champion with no student devices', () => {
+  function noDevices(settings: Partial<Settings> = {}) {
     let now = 1_000_000;
     const clock = { now: () => now, random: () => 0.5 };
     const engine = new Engine(
-      createSession({ code: 'ABC234', setTitle: 'Test', questions, settings: { questionsPerGame: 3, strikes: 2, ...settings }, bigScreen: true, clock }),
+      createSession({ code: 'ABC234', setTitle: 'Test', questions, settings: { questionsPerGame: 3, strikes: 2, ...settings }, noDevices: true, clock }),
       clock,
     );
     const ok = (result: { ok: boolean; message?: string }) => expect(result).toEqual({ ok: true });
@@ -217,8 +217,8 @@ describe('Champion on the Big Screen', () => {
   }
 
   test('a named champion plays the Class Majority: the pot grows more when the class was wrong', () => {
-    const { engine, ok, play } = bigScreen();
-    ok(engine.startBigScreenRound('Ana'));
+    const { engine, ok, play } = noDevices();
+    ok(engine.startNamedRound('Ana'));
     expect(engine.session.players.map((p) => p.nickname)).toEqual(['The Class', 'Ana']);
     play(1, 1);
     expect(engine.session.game!.bank).toBe(100);
@@ -233,8 +233,8 @@ describe('Champion on the Big Screen', () => {
   });
 
   test('out of chances, The Class wins the pot; the next champion is named, and a name that returns keeps its points', () => {
-    const { engine, ok, play } = bigScreen();
-    ok(engine.startBigScreenRound('Ana'));
+    const { engine, ok, play } = noDevices();
+    ok(engine.startNamedRound('Ana'));
     play(0, 1);
     play(1, 0);
     play(1, 2);
@@ -243,17 +243,17 @@ describe('Champion on the Big Screen', () => {
     ok(engine.next());
     expect(engine.session.phase).toBe('LEADERBOARD');
     expect(engine.session.pendingNextOneId).toBeNull();
-    ok(engine.startBigScreenRound('Ben'));
+    ok(engine.startNamedRound('Ben'));
     expect(engine.session.players).toHaveLength(3);
     ok(engine.endGame());
-    ok(engine.startBigScreenRound('ana'));
+    ok(engine.startNamedRound('ana'));
     expect(engine.session.players).toHaveLength(3);
-    expect(engine.startBigScreenRound('  ').ok).toBe(false);
+    expect(engine.startNamedRound('  ').ok).toBe(false);
   });
 
   test('the timer is only a guide, and the class only votes once it has seen the question', () => {
-    const { engine, ok, advance } = bigScreen();
-    ok(engine.startBigScreenRound('Ana'));
+    const { engine, ok, advance } = noDevices();
+    ok(engine.startNamedRound('Ana'));
     ok(engine.openQuestion());
     expect(engine.session.game!.active!.deadline).toBeNull();
     expect(engine.classAnswer(1).ok).toBe(false);
@@ -264,8 +264,8 @@ describe('Champion on the Big Screen', () => {
   });
 
   test('lifelines: Poll shows the Class Majority, Go with the Class locks it in, Ask Two only marks itself used', () => {
-    const { engine, ok } = bigScreen();
-    ok(engine.startBigScreenRound('Ana'));
+    const { engine, ok } = noDevices();
+    ok(engine.startNamedRound('Ana'));
     const one = engine.session.game!.oneId;
     const toChampion = (majority: number | null) => {
       ok(engine.showToClass());

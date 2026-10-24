@@ -71,9 +71,9 @@ export type Settings = {
   momentumFastK: number;
   momentumWindowMinMs: number;
   momentumWindowMaxMs: number;
-  /** On the Big Screen, what a right answer adds to the Prize Pot, and what it adds when the Class Majority was wrong. */
-  bigScreenPot: number;
-  bigScreenBeatClassPot: number;
+  /** With no student devices, what a right answer adds to the Prize Pot, and what it adds when the Class Majority was wrong. */
+  noDevicesPot: number;
+  noDevicesBeatClassPot: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -96,8 +96,8 @@ export const DEFAULT_SETTINGS: Settings = {
   momentumFastK: 1.25,
   momentumWindowMinMs: 8_000,
   momentumWindowMaxMs: 20_000,
-  bigScreenPot: 100,
-  bigScreenBeatClassPot: 200,
+  noDevicesPot: 100,
+  noDevicesBeatClassPot: 200,
 };
 
 export type Phase =
@@ -131,7 +131,7 @@ export type HelpResult =
       bonusEach: number;
     }
   | { type: 'trust'; choice: number; counts: number[] }
-  /** Poll the Class on the Big Screen: the Class Majority. */
+  /** Poll the Class with no student devices: the Class Majority. */
   | { type: 'majority'; choice: number };
 
 export type Attempt = {
@@ -153,9 +153,9 @@ export type Attempt = {
   oneMs: number | null;
   helpUsed: Help | null;
   helpResult: HelpResult | null;
-  /** Big Screen only: false while the Champion looks away and before the class sees the question. */
+  /** No student devices only: false while the Champion looks away and before the class sees the question. */
   classShown?: boolean;
-  /** Big Screen only: the Class Majority the teacher tapped, or null when they skipped it. */
+  /** No student devices only: the Class Majority the teacher tapped, or null when they skipped it. */
   classMajority?: number | null;
 };
 
@@ -171,7 +171,7 @@ export type RevealResult = {
   bankDelta: number;
   momentumCredited: boolean;
   momentumFilled: boolean;
-  /** Big Screen only. */
+  /** No student devices only. */
   classMajority?: number | null;
 };
 
@@ -204,8 +204,8 @@ export type Session = {
   code: string;
   createdAt: number;
   setTitle: string;
-  /** Played on the Big Screen: the teacher enters every choice, and nobody joins. */
-  bigScreen?: boolean;
+  /** Played with no student devices: the teacher enters every choice, and nobody joins. */
+  noDevices?: boolean;
   questions: Question[];
   /** Order the deck is played in (indexes into `questions`). */
   order: number[];

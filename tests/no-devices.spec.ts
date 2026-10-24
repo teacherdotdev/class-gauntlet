@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// The Big Screen: one teacher device, no students joined, and nothing sent to
+// No student devices: one teacher device, no students joined, and nothing sent to
 // the matchmaking server. Every test cuts it off to prove the game doesn't need
 // it. (The workspace's Connection Check still tries it; the game itself mustn't.)
 async function offlineTeacher(browser: import('@playwright/test').Browser) {
@@ -17,17 +17,17 @@ async function offlineTeacher(browser: import('@playwright/test').Browser) {
 
 async function host(teacher: Page, mode: 'Champion' | 'Peril!' | 'Classic') {
   await teacher.getByRole('button', { name: mode, exact: true }).click();
+  await teacher.getByRole('switch', { name: 'Use student devices' }).uncheck();
   await teacher.getByRole('link', { name: new RegExp(`Host ${mode}`) }).click();
-  await teacher.getByRole('radio', { name: /Big Screen/ }).click();
 }
 
 async function setUp(teacher: Page, reached: string[]) {
-  await teacher.getByRole('button', { name: /Set up the Big Screen/ }).click();
+  await teacher.getByRole('button', { name: /Open the game/ }).click();
   await teacher.waitForURL('**/host');
   reached.length = 0;
 }
 
-test('Champion on the Big Screen: no peeking, the Class Majority, a tapped answer, then History', async ({ browser }) => {
+test('Champion with no student devices: no peeking, the Class Majority, a tapped answer, then History', async ({ browser }) => {
   const { teacher, reached } = await offlineTeacher(browser);
   await host(teacher, 'Champion');
   await teacher.getByRole('button', { name: /^Add all/ }).click();
@@ -60,10 +60,10 @@ test('Champion on the Big Screen: no peeking, the Class Majority, a tapped answe
   await expect(teacher.getByRole('heading', { name: 'Champions of the realm' })).toBeVisible();
   expect(reached).toEqual([]);
   await teacher.goto('/history');
-  await expect(teacher.getByText('On the Big Screen')).toBeVisible();
+  await expect(teacher.getByText('No student devices')).toBeVisible();
 });
 
-test('Peril! on the Big Screen: Teams with nobody in them, the teacher taps who buzzed and their answer', async ({ browser }) => {
+test('Peril! with no student devices: Teams with nobody in them, the teacher taps who buzzed and their answer', async ({ browser }) => {
   const { teacher, reached } = await offlineTeacher(browser);
   await host(teacher, 'Peril!');
   await expect(teacher.getByRole('radio', { name: 'Solo' })).toHaveCount(0);
@@ -95,7 +95,7 @@ test('Peril! on the Big Screen: Teams with nobody in them, the teacher taps who 
   expect(reached).toEqual([]);
 });
 
-test('Classic on the Big Screen: a class review the teacher paces, with no counts', async ({ browser }) => {
+test('Classic with no student devices: a class review the teacher paces, with no counts', async ({ browser }) => {
   const { teacher, reached } = await offlineTeacher(browser);
   await host(teacher, 'Classic');
   await teacher.getByRole('button', { name: /^−6 \+ 14 = \?/ }).click();

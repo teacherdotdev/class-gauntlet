@@ -3,12 +3,13 @@
   // built from the public view, so the question stays hidden while the class
   // answers and the right answer stays hidden until the reveal. Inside a
   // question the game moves itself along; the teacher taps Next in between.
-  // On the Big Screen nobody has a device: the champion looks away while the
+  // With no student devices, the champion looks away while the
   // class sees the question and votes by hand, the teacher taps the Class
   // Majority, and the champion answers by tapping up here.
   import Rich from '../rich/Rich.svelte';
   import Avatar from '../components/Avatar.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
+  import ChampionSteps from '../components/art/ChampionSteps.svelte';
   import Crowd, { type CrowdMember } from '../components/Crowd.svelte';
   import LifelineIcon from '../components/LifelineIcon.svelte';
   import SpotlightSweep from '../components/SpotlightSweep.svelte';
@@ -30,7 +31,7 @@
   const oneId = $derived(game?.one.id ?? '');
   const deadline = $derived(q?.remainingMs != null ? Date.now() + q.remainingMs : null);
   const name = (id: string) => view.roster.find((p) => p.id === id)?.nickname ?? 'Someone';
-  const big = $derived(view.bigScreen);
+  const noDevices = $derived(view.noDevices);
   const classPoints = $derived(view.roster.find((p) => p.id === CLASS_ID)?.points ?? 0);
 
   const spotOnOne = $derived(['PHASE_B', 'ONE_LOCKED', 'REVEAL'].includes(phase));
@@ -51,7 +52,7 @@
   // it mounts, before any effect here could reset a plain flag, so each round
   // is compared instead of reset.
   let landedOrdinal = $state(0);
-  const landed = $derived(!!game && (big || landedOrdinal === game.ordinal));
+  const landed = $derived(!!game && (noDevices || landedOrdinal === game.ordinal));
 
   let menuOpen = $state(false);
 
@@ -87,10 +88,10 @@
     if (phase === 'BETWEEN') return landed ? { label: 'Begin', run: () => host.run((e) => e.openQuestion()) } : null;
     if (phase === 'PHASE_A' && q?.peeking) return { label: 'Show the class', run: () => host.run((e) => e.showToClass()) };
     if (phase === 'PHASE_A') return { label: 'Skip', run: () => host.run((e) => e.lock()), quiet: true };
-    if (phase === 'PHASE_A_LOCKED' && big) return { label: `Show ${one} the question`, run: () => host.run((e) => e.showToOne()) };
+    if (phase === 'PHASE_A_LOCKED' && noDevices) return { label: `Show ${one} the question`, run: () => host.run((e) => e.showToOne()) };
     if (phase === 'REVEAL')
       return { label: game?.result ? 'Scoreboard' : 'Next question', run: () => host.run((e) => e.next()) };
-    if (phase === 'LEADERBOARD' && big) return { label: 'Next round', run: () => host.run((e) => e.startBigScreenRound(nextName)) };
+    if (phase === 'LEADERBOARD' && noDevices) return { label: 'Next round', run: () => host.run((e) => e.startNamedRound(nextName)) };
     if (phase === 'LEADERBOARD') return { label: 'Next round', run: () => host.run((e) => e.startGame()) };
     return null;
   });
@@ -109,15 +110,15 @@
     } else host.run((e) => e.answerForOne(i));
   }
   function tapLifeline(h: 'poll' | 'ask' | 'trust') {
-    // On the Big Screen, Poll the Class just shows the Class Majority.
-    if (h === 'poll' && big) host.run((e) => e.helpPoll(oneId, 0));
+    // With no student devices, Poll the Class just shows the Class Majority.
+    if (h === 'poll' && noDevices) host.run((e) => e.helpPoll(oneId, 0));
     else if (h === 'poll') pollMode = !pollMode;
     else host.run((e) => (h === 'ask' ? e.helpAsk(oneId) : e.helpTrust(oneId)));
   }
   const crowdSize = $derived(crowd.length <= 12 ? 50 : crowd.length <= 24 ? 40 : 32);
 
-  // On the Big Screen the teacher taps the answer most of the class chose.
-  const classTaps = $derived(big && phase === 'PHASE_A' && !view.paused && !!q?.choices);
+  // With no student devices the teacher taps the answer most of the class chose.
+  const classTaps = $derived(noDevices && phase === 'PHASE_A' && !view.paused && !!q?.choices);
 
   let nextOne = $state('');
   let nextName = $state('');
@@ -155,8 +156,8 @@
       <span></span>
     {/if}
     <div class="tools">
-      {#if !big && host.status !== 'open' && host.status !== 'closed'}<span class="conn" role="status">Reconnecting…</span>{/if}
-      {#if big}<span class="pin">Big Screen</span>{:else}<span class="pin">PIN <strong>{spacedCode(view.code)}</strong></span>{/if}
+      {#if !noDevices && host.status !== 'open' && host.status !== 'closed'}<span class="conn" role="status">Reconnecting…</span>{/if}
+      {#if noDevices}<span class="pin">No student devices</span>{:else}<span class="pin">PIN <strong>{spacedCode(view.code)}</strong></span>{/if}
       {#if phase === 'PHASE_A' || phase === 'PHASE_B'}
         <button class="tool" onclick={() => host.run((e) => (view.paused ? e.resume() : e.pause()))} aria-label={view.paused ? 'Resume' : 'Pause'}>
           {view.paused ? '▶' : '❚❚'}
@@ -181,14 +182,12 @@
 
   {#if phase === 'BETWEEN' && game}
     <section class="intro">
-      {#if !big}<SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landedOrdinal = game.ordinal)} />{/if}
+      {#if !noDevices}<SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landedOrdinal = game.ordinal)} />{/if}
       <div class="intro-text" class:show={landed}>
         <h1>{one} takes up the gauntlet!</h1>
-        {#if big}
-          <p>
-            Everyone else is the class. While {one} looks away, the class votes with their hands; then {one} answers. Each time
-            {one} is right the Prize Pot grows, and it grows twice as much when {one} beats the class.
-          </p>
+        {#if noDevices}
+          <p>Everyone else is the class.</p>
+          <ChampionSteps {one} />
         {:else}
           <p>
             Everyone else is the class. The class answers first, then {one} answers alone. Each time {one} is right, classmates
@@ -225,7 +224,7 @@
           </li>
         {/each}
       </ol>
-      {#if phase === 'LEADERBOARD' && big}
+      {#if phase === 'LEADERBOARD' && noDevices}
         <form class="next-up" onsubmit={(event) => { event.preventDefault(); next?.run(); }}>
           <span class="label">Next champion</span>
           <input bind:value={nextName} maxlength="24" aria-label="Next champion’s name" />
@@ -253,7 +252,7 @@
           <div>
             <span class="label">Champion</span>
             <strong class="name">{one}</strong>
-            {#if !big && !game.one.connected}<span class="offline">offline</span>{/if}
+            {#if !noDevices && !game.one.connected}<span class="offline">offline</span>{/if}
             <div class="purse">
               <span title="{plural(game.strikes, 'chance')} left">
                 {#each Array.from({ length: Math.max(game.baseStrikes, game.strikes) }, (_, i) => i) as i (i)}
@@ -282,7 +281,7 @@
 
       <div class="vs" aria-hidden="true"><span>VS</span></div>
 
-      {#if big}
+      {#if noDevices}
         <div class="horde the-class" class:lit={crowdLit}>
           <Avatar name="The Class" size={110} />
           <div>
@@ -311,12 +310,12 @@
             <p>No peeking! The class sees the question first.</p>
           </div>
         </div>
-      {:else if phase === 'PHASE_A_LOCKED' && big}
+      {:else if phase === 'PHASE_A_LOCKED' && noDevices}
         <div class="callout">
           <div class="eyes" aria-hidden="true">👀</div>
           <div><h1>{one}, you can look now!</h1><p>The class has voted. Your turn.</p></div>
         </div>
-      {:else if phase === 'PHASE_A' && big && q?.choices}
+      {:else if phase === 'PHASE_A' && noDevices && q?.choices}
         <div class="class-head">
           <h2 class="question"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></h2>
           <TimerRing {deadline} totalMs={s.settings.timerSeconds * 1000} paused={view.paused} size={110} />
@@ -346,7 +345,7 @@
               {text} rich={q.rich?.choices[i]}
               big
               state={blockState(i)}
-              count={q.reveal && !big ? q.reveal.counts[i] : null}
+              count={q.reveal && !noDevices ? q.reveal.counts[i] : null}
               total={q.answered}
               tag={q.oneAnswer === i ? (phase === 'ONE_LOCKED' ? 'Final answer' : one) : ''}
               onclick={frontTaps ? () => tapAnswer(i) : undefined}
@@ -360,7 +359,7 @@
             <p class="news">
               {#if q.helpResult.type === 'majority'}
                 <b>Poll the Class:</b> most of the class chose {String.fromCharCode(65 + q.helpResult.choice)}.
-              {:else if q.helpResult.type === 'ask' && big}
+              {:else if q.helpResult.type === 'ask' && noDevices}
                 <b>Ask Two:</b> {one}, choose two classmates to explain their answers out loud.
               {:else if q.helpResult.type === 'poll'}
                 <b>Poll the Class:</b> {q.helpResult.count} of {q.helpResult.total} in the class chose {String.fromCharCode(65 + q.helpResult.choice)}.
@@ -370,13 +369,13 @@
               {/if}
             </p>
           {:else}
-            <p class="hint">{big ? `${one}, tap your answer up here.` : `${one}, answer on your device or tap your answer up here.`}</p>
+            <p class="hint">{noDevices ? `${one}, tap your answer up here.` : `${one}, answer on your device or tap your answer up here.`}</p>
           {/if}
         {:else if phase === 'ONE_LOCKED'}
           <p class="hint drum">Final answer locked in…</p>
         {:else if q.reveal}
           <p class="news verdict" class:good={q.reveal.oneCorrect} class:bad={!q.reveal.oneCorrect}>
-            {#if big}
+            {#if noDevices}
               {@const majority = q.reveal.classMajority}
               {#if q.reveal.oneCorrect}
                 <b>{one} is right!</b>
@@ -407,7 +406,7 @@
         <div class="scroll">
           <span class="label">Round over</span>
           <h2>{endHeadline(game.result.reason, one, game.result.bankedByOne)}</h2>
-          <p>{endDetail(game.result.reason, one, game.result.payouts.filter((p) => p.playerId !== oneId).length, big)}</p>
+          <p>{endDetail(game.result.reason, one, game.result.payouts.filter((p) => p.playerId !== oneId).length, noDevices)}</p>
           <div class="payouts">
             {#each game.result.payouts.slice(0, 12) as p (p.playerId)}<span>{name(p.playerId)} +{p.points}</span>{/each}
           </div>

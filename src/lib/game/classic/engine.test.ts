@@ -107,11 +107,11 @@ describe('Classic', () => {
   });
 });
 
-describe('Classic on the Big Screen', () => {
+describe('Classic with no student devices', () => {
   test('starts with nobody joined, and only the teacher shows the answer', () => {
     let now = 1_000_000;
     const clock = { now: () => now, random: () => 0.5 };
-    const engine = new ClassicEngine(createClassicSession({ code: '123456', title: 'Facts', questions, bigScreen: true, clock }), clock);
+    const engine = new ClassicEngine(createClassicSession({ code: '123456', title: 'Facts', questions, noDevices: true, clock }), clock);
     expect(engine.start()).toEqual({ ok: true });
     now += 120_000;
     expect(engine.tick()).toBe(false);

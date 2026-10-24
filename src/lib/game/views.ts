@@ -23,8 +23,8 @@ export type View = {
   seq: number;
   code: string;
   setTitle: string;
-  /** Played on the Big Screen: no devices, the teacher taps every choice. */
-  bigScreen: boolean;
+  /** Played with no student devices: the teacher taps every choice. */
+  noDevices: boolean;
   phase: Phase;
   paused: boolean;
   pauseReason: 'teacher' | 'one_disconnected' | null;
@@ -48,7 +48,7 @@ export type View = {
   question: null | {
     attemptId: string;
     index: number;
-    /** Big Screen only: the Champion is looking away and the class hasn't seen the question yet. */
+    /** No student devices only: the Champion is looking away and the class hasn't seen the question yet. */
     peeking: boolean;
     /** Hidden on the projector and from The One while the class answers. */
     prompt: string | null;
@@ -74,7 +74,7 @@ export type View = {
       bankDelta: number;
       momentumCredited: boolean;
       momentumFilled: boolean;
-      /** Big Screen only: the answer most of the class chose; null when it was skipped. */
+      /** No student devices only: the answer most of the class chose; null when it was skipped. */
       classMajority: number | null;
     };
   };
@@ -112,10 +112,10 @@ export function buildView(
   const showQuestion = active && questionPhases.includes(s.phase);
   const classPhase = s.phase === 'PHASE_A' || s.phase === 'PHASE_A_LOCKED';
   const viewerAnswersNow = !!viewer && !!active && active.eligible.includes(viewer.id);
-  // On the Big Screen the class reads the question off the screen while the
+  // With no student devices the class reads the question off the screen while the
   // Champion looks away; it hides again while the Champion turns back.
-  const peeking = !!s.bigScreen && s.phase === 'PHASE_A' && !active?.classShown;
-  const promptVisible = s.bigScreen
+  const peeking = !!s.noDevices && s.phase === 'PHASE_A' && !active?.classShown;
+  const promptVisible = s.noDevices
     ? s.phase !== 'PHASE_A_LOCKED' && !peeking
     : !classPhase || (viewerAnswersNow && viewer?.role !== 'one');
   const revealed = s.phase === 'REVEAL' ? (game?.reveal ?? null) : null;
@@ -125,7 +125,7 @@ export function buildView(
     seq: s.seq,
     code: s.code,
     setTitle: s.setTitle,
-    bigScreen: !!s.bigScreen,
+    noDevices: !!s.noDevices,
     phase: s.phase,
     paused: s.paused,
     pauseReason: s.paused ? options.pauseReason : null,

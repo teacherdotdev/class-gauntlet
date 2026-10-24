@@ -1,4 +1,4 @@
-import { momentumWindowMs, scoreBigScreenReveal, scoreReveal } from './scoring';
+import { momentumWindowMs, scoreNoDevicesReveal, scoreReveal } from './scoring';
 import {
   DEFAULT_SETTINGS,
   type Attempt,
@@ -19,7 +19,7 @@ import {
  *   ─show to One→ PHASE_B (One answers, may use a lifeline) ─final answer→ ONE_LOCKED
  *   ─reveal→ REVEAL ─next→ PHASE_A … or, when the game is over, LEADERBOARD ─start→ BETWEEN …
  *
- * On the Big Screen nobody joins. The teacher names each Champion as their
+ * With no student devices nobody joins. The teacher names each Champion as their
  * round starts. In PHASE_A the Champion looks away, the teacher shows the
  * class the question (showToClass), the class votes by hand, and the teacher
  * taps the Class Majority. The Champion answers by tapping the screen. The
@@ -31,7 +31,7 @@ const ok: Result = { ok: true };
 const no = (message: string): Result => ({ ok: false, message });
 
 export const MAX_PLAYERS = 40;
-/** The Class's entry in a Big Screen Champion game: it wins the pots the Champions lose. */
+/** The Class's entry in a Champion game with no student devices: it wins the pots the Champions lose. */
 export const CLASS_ID = 'the-class';
 export const NICKNAME_MAX = 24;
 const DENYLIST = ['damn', 'idiot', 'stupid', 'hell', 'crap', 'sucks', 'loser', 'dumb'];
@@ -81,7 +81,7 @@ export function createSession(input: {
   setTitle: string;
   questions: Question[];
   settings?: Partial<Settings>;
-  bigScreen?: boolean;
+  noDevices?: boolean;
   clock?: Clock;
 }): Session {
   const clock = input.clock ?? systemClock;
@@ -91,7 +91,7 @@ export function createSession(input: {
     code: input.code,
     createdAt: clock.now(),
     setTitle: input.setTitle,
-    ...(input.bigScreen ? { bigScreen: true } : {}),
+    ...(input.noDevices ? { noDevices: true } : {}),
     questions: input.questions.map((q) => ({ ...q, choices: [...q.choices] })),
     order: settings.shuffleQuestions
       ? shuffled(input.questions.length, clock.random)
@@ -282,10 +282,10 @@ export class Engine {
     return this.beginGame(one);
   }
 
-  /** Starts a Big Screen round with the Champion the teacher named; a name that has played before keeps its points. */
-  startBigScreenRound(name: string): Result {
+  /** With no student devices: starts a round with the Champion the teacher named; a name that has played before keeps its points. */
+  startNamedRound(name: string): Result {
     const s = this.session;
-    if (!s.bigScreen) return no('Students are playing on their devices.');
+    if (!s.noDevices) return no('Students are playing on their devices.');
     if (s.phase !== 'LOBBY' && s.phase !== 'LEADERBOARD') return no('Finish this game first.');
     if (s.questions.length === 0) return no('This question set is empty.');
     const nickname = normalizeNickname(name).slice(0, NICKNAME_MAX);
@@ -368,9 +368,9 @@ export class Engine {
       index: game.offset + 1,
       question,
       startedAt: now,
-      // On the Big Screen the clock starts once the class sees the question.
-      deadline: s.bigScreen ? null : now + s.settings.timerSeconds * 1000,
-      ...(s.bigScreen ? { classShown: false } : {}),
+      // With no student devices the clock starts once the class sees the question.
+      deadline: s.noDevices ? null : now + s.settings.timerSeconds * 1000,
+      ...(s.noDevices ? { classShown: false } : {}),
       pausedRemainingMs: null,
       pausedAt: null,
       eligible,
@@ -383,7 +383,7 @@ export class Engine {
     };
     game.reveal = null;
     s.phase = 'PHASE_A';
-    if (eligible.length === 0 && !s.bigScreen) s.phase = 'PHASE_A_LOCKED';
+    if (eligible.length === 0 && !s.noDevices) s.phase = 'PHASE_A_LOCKED';
     return this.changed();
   }
 
@@ -402,11 +402,11 @@ export class Engine {
     return this.changed();
   }
 
-  /** On the Big Screen: the Champion has looked away, so the class may see the question. */
+  /** With no student devices: the Champion has looked away, so the class may see the question. */
   showToClass(): Result {
     const s = this.session;
     const active = s.game?.active;
-    if (!s.bigScreen || !active || s.phase !== 'PHASE_A' || active.classShown) return no('The class can already see the question.');
+    if (!s.noDevices || !active || s.phase !== 'PHASE_A' || active.classShown) return no('The class can already see the question.');
     const now = this.clock.now();
     active.classShown = true;
     active.startedAt = now;
@@ -415,23 +415,23 @@ export class Engine {
     return this.changed();
   }
 
-  /** On the Big Screen: the answer most of the class chose, as the teacher taps it. */
+  /** With no student devices: the answer most of the class chose, as the teacher taps it. */
   classAnswer(choice: number): Result {
     const s = this.session;
     const active = s.game?.active;
-    if (!s.bigScreen) return no('The class answers on their devices.');
+    if (!s.noDevices) return no('The class answers on their devices.');
     if (!active || s.phase !== 'PHASE_A' || !active.classShown) return no('The class isn’t answering right now.');
     if (!Number.isInteger(choice) || choice < 0 || choice >= active.question.choices.length) return no('Pick an answer.');
     active.classMajority = choice;
     return this.lock();
   }
 
-  /** Locks the class's answers early (or when the timer runs out). On the Big Screen, skips the class's vote. */
+  /** Locks the class's answers early (or when the timer runs out). With no student devices, skips the class's vote. */
   lock(): Result {
     const s = this.session;
     const active = s.game?.active;
     if (!active || s.phase !== 'PHASE_A') return no('Answers are not open.');
-    if (s.bigScreen) active.classMajority ??= null;
+    if (s.noDevices) active.classMajority ??= null;
     active.deadline = null;
     active.pausedRemainingMs = null;
     active.pausedAt = null;
@@ -441,10 +441,10 @@ export class Engine {
     return this.changed();
   }
 
-  /** Call often; locks Phase A when its timer runs out. Returns true if anything changed. On the Big Screen the timer is only a guide. */
+  /** Call often; locks Phase A when its timer runs out. Returns true if anything changed. With no student devices the timer is only a guide. */
   tick(): boolean {
     const s = this.session;
-    if (s.bigScreen) return false;
+    if (s.noDevices) return false;
     const active = s.game?.active;
     if (s.phase === 'PHASE_A' && !s.paused && active?.deadline != null && this.clock.now() >= active.deadline) {
       this.lock();
@@ -460,7 +460,7 @@ export class Engine {
     if (!active || s.phase !== 'PHASE_A_LOCKED') return no('The class is still answering.');
     active.phaseBStartedAt = this.clock.now();
     s.phase = 'PHASE_B';
-    if (!s.bigScreen && !this.one?.connected) this.pause('one_disconnected');
+    if (!s.noDevices && !this.one?.connected) this.pause('one_disconnected');
     return this.changed();
   }
 
@@ -475,12 +475,12 @@ export class Engine {
     return { ok: true, active };
   }
 
-  /** Poll the Class: The One picks an answer and sees how many classmates chose it. On the Big Screen, it shows the Class Majority. */
+  /** Poll the Class: The One picks an answer and sees how many classmates chose it. With no student devices, it shows the Class Majority. */
   helpPoll(playerId: string, choice: number): Result {
     const check = this.helpCheck(playerId, 'poll');
     if (!check.ok) return check;
     const { active } = check;
-    if (this.session.bigScreen) {
+    if (this.session.noDevices) {
       if (active.classMajority == null) return no('The class didn’t vote on this one. Try another lifeline!');
       active.helpUsed = 'poll';
       active.helpResult = { type: 'majority', choice: active.classMajority };
@@ -500,12 +500,12 @@ export class Engine {
     return this.changed();
   }
 
-  /** Ask Two: one classmate who got it right and one who didn't explain their thinking out loud. On the Big Screen the teacher chooses them, so this only marks it used. */
+  /** Ask Two: one classmate who got it right and one who didn't explain their thinking out loud. With no student devices the teacher chooses them, so this only marks it used. */
   helpAsk(playerId: string): Result {
     const check = this.helpCheck(playerId, 'ask');
     if (!check.ok) return check;
     const { active } = check;
-    if (this.session.bigScreen) {
+    if (this.session.noDevices) {
       active.helpUsed = 'ask';
       active.helpResult = { type: 'ask', speakers: [], bonusEach: 0 };
       this.session.game!.helpsUsed.ask = true;
@@ -534,12 +534,12 @@ export class Engine {
     return this.changed();
   }
 
-  /** Go with the Class: lock in the class's most popular answer (on the Big Screen, the Class Majority). */
+  /** Go with the Class: lock in the class's most popular answer (with no student devices, the Class Majority). */
   helpTrust(playerId: string): Result {
     const check = this.helpCheck(playerId, 'trust');
     if (!check.ok) return check;
     const { active } = check;
-    if (this.session.bigScreen) {
+    if (this.session.noDevices) {
       if (active.classMajority == null) return no('The class didn’t vote on this one. Try another lifeline!');
       active.helpUsed = 'trust';
       active.helpResult = { type: 'trust', choice: active.classMajority, counts: [] };
@@ -605,8 +605,8 @@ export class Engine {
       deckSize: game.deck.length,
       settings: s.settings,
     };
-    const scored = s.bigScreen
-      ? scoreBigScreenReveal({ ...shared, classId: CLASS_ID, classMajority: active.classMajority ?? null })
+    const scored = s.noDevices
+      ? scoreNoDevicesReveal({ ...shared, classId: CLASS_ID, classMajority: active.classMajority ?? null })
       : scoreReveal({ ...shared, eligible: active.eligible, answers: new Map(active.answers.map((a) => [a.playerId, a.choice])) });
 
     // On a Roll: fast, unaided right answers fill a meter that restores one strike, once per game.
@@ -652,7 +652,7 @@ export class Engine {
       bankDelta: scored.bankDelta,
       momentumCredited,
       momentumFilled,
-      ...(s.bigScreen ? { classMajority: active.classMajority ?? null } : {}),
+      ...(s.noDevices ? { classMajority: active.classMajority ?? null } : {}),
     };
     if (scored.endReason) {
       game.result = { reason: scored.endReason, payouts: scored.payouts, bank: scored.bank, bankedByOne: scored.bankedByOne };
@@ -669,7 +669,7 @@ export class Engine {
     if (s.phase !== 'REVEAL' || !s.game) return no('Reveal the answer first.');
     if (s.game.result) {
       s.phase = 'LEADERBOARD';
-      s.pendingNextOneId = s.bigScreen ? null : (this.suggestedOne()?.id ?? null);
+      s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
       return this.changed();
     }
     return this.openQuestion();
@@ -719,7 +719,7 @@ export class Engine {
     s.paused = false;
     this.pauseReason = null;
     s.phase = 'LEADERBOARD';
-    s.pendingNextOneId = s.bigScreen ? null : (this.suggestedOne()?.id ?? null);
+    s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
     return this.changed();
   }
 

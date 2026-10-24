@@ -341,13 +341,13 @@ describe('Peril! rules', () => {
   });
 });
 
-describe('Peril! on the Big Screen', () => {
-  function bigScreen() {
+describe('Peril! with no student devices', () => {
+  function noDevices() {
     let now = 1_000_000;
     let seed = 3;
     const clock = { now: () => now, random: () => (seed = (seed * 16807) % 2147483647) / 2147483647 };
     const engine = new PerilEngine(
-      createPerilSession({ code: '123456', settings: { teams: { names: ['Red', 'Blue'], assign: 'auto' } }, bigScreen: true, clock }),
+      createPerilSession({ code: '123456', settings: { teams: { names: ['Red', 'Blue'], assign: 'auto' } }, noDevices: true, clock }),
       clock,
     );
     const ok = (result: { ok: boolean; message?: string }) => expect(result).toEqual({ ok: true });
@@ -356,7 +356,7 @@ describe('Peril! on the Big Screen', () => {
   }
 
   test('Teams with nobody in them play: the teacher taps who buzzed and what they answered', () => {
-    const { engine, ok, red, blue } = bigScreen();
+    const { engine, ok, red, blue } = noDevices();
     ok(engine.startBoard(board()));
     expect(engine.session.control).not.toBeNull();
     ok(engine.pickTile(0, 0));
@@ -375,7 +375,7 @@ describe('Peril! on the Big Screen', () => {
   });
 
   test('nobody buzzing still runs out the clock', () => {
-    const { engine, ok, advance } = bigScreen();
+    const { engine, ok, advance } = noDevices();
     ok(engine.startBoard(board()));
     ok(engine.pickTile(0, 0));
     ok(engine.armBuzzers());
@@ -385,7 +385,7 @@ describe('Peril! on the Big Screen', () => {
   });
 
   test('a Treasure Trove takes the Wager the teacher enters, with no clock', () => {
-    const { engine, ok, advance } = bigScreen();
+    const { engine, ok, advance } = noDevices();
     ok(engine.startBoard(board('a1')));
     const holder = engine.session.control;
     ok(engine.pickTile(0, 0));
