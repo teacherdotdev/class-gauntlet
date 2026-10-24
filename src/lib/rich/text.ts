@@ -4,7 +4,7 @@ import type { RichTextMark, RichTextNode } from '@teacherdotdev/question-commons
  * Rich Text: a question's words with formatting, math and pictures, in the
  * shape Question Commons uses (plus display math, which it lacks). A
  * picture names its bytes by `asset`, the hash they are kept under (see
- * images.svelte.ts). Every question also keeps a plain-text copy, for search,
+ * pictures.svelte.ts). Every question also keeps a plain-text copy, for search,
  * spreadsheets and History; questions with nothing but plain text keep only that.
  */
 
@@ -21,6 +21,22 @@ export type RichMark = RichTextMark;
 export type RichQuestion = { prompt: RichText; choices: RichText[]; explanation?: RichText };
 
 const PICTURE = '[picture]';
+
+/**
+ * A Picture Note: words in square brackets where a Picture should go, left by
+ * an import that couldn't bring the Picture: "[picture]" or
+ * "[picture: a parabola opening down]".
+ */
+export const pictureNote = (description?: string) => (description?.trim() ? `[picture: ${description.trim()}]` : PICTURE);
+const PICTURE_NOTE = /\[picture(?::[^\]]*)?\]/i;
+
+/** Whether Rich Text (or plain text) still has a Picture Note in it. */
+export function hasPictureNote(value: RichText | string | undefined): boolean {
+  if (typeof value === 'string') return PICTURE_NOTE.test(value);
+  // Only the words: a real picture's plain text reads "[picture]" too.
+  const words = (nodes: RichNode[] | undefined): string => (nodes ?? []).map((n) => (n.type === 'text' ? (n.text ?? '') : words(n.content))).join(' ');
+  return PICTURE_NOTE.test(words(value));
+}
 
 export function plainOf(rich: RichText | undefined): string {
   const walk = (node: RichNode): string => {
@@ -279,10 +295,10 @@ export function richShown(question: { rich?: RichQuestion }, words: boolean, exp
   return { prompt: rich.prompt, choices: rich.choices, ...(explanation && rich.explanation ? { explanation: rich.explanation } : {}) };
 }
 
-/** Rich Text with each picture swapped for a "[picture]" note, for places too small to carry pictures (share links). */
+/** Rich Text with each picture swapped for a Picture Note, for places too small to carry pictures (share links). */
 export function withoutPictures(rich: RichText): RichText {
   return rich.map((node) => {
-    if (node.type === 'block-image') return { type: 'text', text: node.alt ? `[${node.alt}]` : PICTURE };
+    if (node.type === 'block-image') return { type: 'text', text: pictureNote(node.alt) };
     return node.content ? { ...node, content: withoutPictures(node.content) } : node;
   });
 }

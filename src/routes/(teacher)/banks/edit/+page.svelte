@@ -6,12 +6,17 @@
   import Rich from '#lib/rich/Rich.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { ArrowLeft, Copy, Download, Play, Plus, Redo2, Trash2, Undo2 } from '@lucide/svelte';
+  import { ArrowLeft, Copy, ImagePlus, Play, Plus, Redo2, Share2, Sigma, Trash2, Undo2 } from '@lucide/svelte';
   import { randomId } from '#lib/game/engine.ts';
   import type { Question, QuestionBank } from '#lib/game/types.ts';
   import { browse, libraryTopics, type QuestionFilter } from '#lib/questions/browse.ts';
+  import { bankFileName, downloadBankFile, writeBankFile } from '#lib/questions/bank-file.ts';
   import { csvFileName, downloadCsv, exportCsv } from '#lib/questions/csv.ts';
+  import DownloadButton from '#lib/questions/DownloadButton.svelte';
+  import { pictureFile } from '#lib/rich/pictures.svelte.ts';
+  import { needsPicture, withTextMathAsMath } from '#lib/questions/edit.ts';
   import QuestionDialog from '#lib/questions/QuestionDialog.svelte';
+  import ShareDialog from '#lib/questions/ShareDialog.svelte';
   import { sampleSetId } from '#lib/questions/sample.ts';
   import { library } from '#lib/questions/store.svelte.ts';
   import { UndoStack } from '#lib/questions/undo.ts';
@@ -28,6 +33,7 @@
   let toast = $state<{ message: string; undo: boolean } | null>(null);
   let toastTimer = 0;
   let titleBox = $state<HTMLInputElement>();
+  let sharer = $state<ShareDialog>();
 
   /** Snapshots of the bank before each change, for Cmd/Ctrl+Z. */
   const undoStack = new UndoStack<QuestionBank>();
@@ -117,6 +123,16 @@
     say('Question duplicated.');
   }
 
+  /** Questions whose math is still written as `$…$` text, as a spreadsheet imported before math was read. */
+  const textMath = $derived(bank ? bank.questions.filter((q) => withTextMathAsMath(q)).length : 0);
+
+  function turnTextIntoMath() {
+    if (!bank) return;
+    const questions = snapshot().questions.map((q) => withTextMathAsMath(q) ?? q);
+    change({ questions });
+    say(`Turned math in ${plural(textMath, 'question')} into math.`);
+  }
+
   function showTopic(topic: string | null) {
     filters = topic ? [{ property: 'topic', values: [topic] }] : [];
   }
@@ -154,12 +170,25 @@
         <div class="actions">
           <button class="icon-btn" onclick={() => step('undo')} disabled={!canUndo} aria-label="Undo" title="Undo (⌘/Ctrl+Z)"><Undo2 size={18} /></button>
           <button class="icon-btn" onclick={() => step('redo')} disabled={!canRedo} aria-label="Redo" title="Redo (⇧⌘/Ctrl+Z)"><Redo2 size={18} /></button>
-          <button class="btn-ghost" onclick={() => downloadCsv(csvFileName(bank.title), exportCsv(snapshot()))} disabled={!bank.questions.length}><Download size={16} aria-hidden="true" /> Download CSV</button>
+          <button class="btn-ghost" onclick={() => sharer?.share(snapshot())} disabled={!bank.questions.length}><Share2 size={16} aria-hidden="true" /> Share</button>
+          <DownloadButton
+            disabled={!bank.questions.length}
+            title="Download this bank as a file, Pictures and all"
+            ondownload={async () => downloadBankFile(bankFileName(snapshot()), await writeBankFile(snapshot(), pictureFile))}
+            oncsv={() => downloadCsv(csvFileName(bank.title), exportCsv(snapshot()))}
+          />
           <a class="btn-ghost" href="/games?bank={bank.id}"><Play size={16} aria-hidden="true" /> Play</a>
           <button class="btn-primary" onclick={newQuestion}><Plus size={16} aria-hidden="true" /> New question</button>
         </div>
       </div>
       {#if isSample}<p class="hint">This is the sample bank. If you delete it, you can bring it back from the Question banks page.</p>{/if}
+      {#if textMath}
+        <p class="hint math-hint">
+          <Sigma size={16} aria-hidden="true" />
+          <span>{plural(textMath, 'question')} {textMath === 1 ? 'has' : 'have'} math written as <code>$…$</code>.</span>
+          <button class="link" onclick={turnTextIntoMath}>Turn it into math</button>
+        </p>
+      {/if}
     </header>
 
     <div class="frame">
@@ -185,6 +214,7 @@
             {#each shown as question (question.id)}
               <li class="card">
                 <button class="read" onclick={() => (editing = { question, isNew: false })} aria-label="Edit question: {question.prompt}">
+                  {#if needsPicture(question)}<span class="picture-badge"><ImagePlus size={13} aria-hidden="true" /> Needs a Picture</span>{/if}
                   <strong class="prompt"><Rich rich={question.rich?.prompt} text={question.prompt} /></strong>
                   <span class="choices">
                     {#each question.choices as c, ci (ci)}<span class:right={ci === question.correct}>{letter(ci)}. <Rich rich={question.rich?.choices[ci]} text={c} /></span>{/each}
@@ -224,6 +254,8 @@
       />
     {/key}
   {/if}
+
+  <ShareDialog bind:this={sharer} onshared={(message) => say(message, false)} />
 
   {#if toast}
     <div class="toast" role="status">
@@ -303,6 +335,24 @@
   }
   .hint {
     color: var(--muted);
+  }
+  .math-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--ink-soft);
+  }
+  .picture-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--amber-border);
+    color: var(--amber-strong);
+    font-size: 0.78rem;
+    font-weight: 700;
   }
   .frame {
     flex: 1;

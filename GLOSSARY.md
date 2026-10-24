@@ -27,7 +27,22 @@ A concept a question covers, as Question Commons names it. A question can have s
 _Avoid_: Tag, category
 
 **Rich Text**:
-A question's words with formatting, math and pictures, in the shape Question Commons uses. Every question also keeps them as plain text, for search, spreadsheets and History. A picture lives in the teacher's browser and is sent to each phone that needs it.
+A question's words with formatting, math and Pictures, in the shape Question Commons uses, in its prompt, each answer and its explanation. Every question also keeps them as plain text, for search, spreadsheets and History.
+
+**Picture**:
+An image in a question, an answer or an explanation, still or animated. An answer can be only a Picture, with no words. A Picture lives in the teacher's browser and is sent to each phone that needs it.
+_Avoid_: Image, photo, graphic
+
+**Share Link**:
+A link that carries a whole Question Bank inside it, for another teacher to add to their library. Pictures don't fit in a link, so a bank with Pictures is better sent as a Bank File.
+
+**Bank File**:
+One Question Bank saved as a file with its Pictures, for another teacher to import; it adds to their library instead of replacing it, as a Backup would. It is the same kind of file Test Parrot makes, so either app can read the other's.
+_Avoid_: Export, package, bank export
+
+**Picture Note**:
+A note where a Picture should go, left by an import that couldn't bring the Picture, so the teacher knows which questions still need one.
+_Avoid_: Placeholder, missing image
 
 **History**:
 The record, kept in the teacher's browser, of every finished Session that had someone to place: when, which Game Mode, whether it used Student Devices, and how each student or Team placed.

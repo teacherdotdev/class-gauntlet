@@ -4,11 +4,12 @@
   // and what was left out, and the teacher confirms. For a worksheet, PDF or
   // photo, an AI chat can turn it into our spreadsheet first.
   import Rich from '../rich/Rich.svelte';
-  import { Check, ClipboardPaste, Download, FileUp, Sparkles, X } from '@lucide/svelte';
+  import { Check, ClipboardPaste, Download, FileUp, ImagePlus, Sparkles, X } from '@lucide/svelte';
   import { FORMATS } from '@teacherdotdev/question-commons';
   import type { QuestionBank } from '../game/types';
   import { plural } from '../words';
   import { aiInstructions, downloadCsv, templateCsv } from './csv';
+  import { needsPicture } from './edit';
   import { importPasted, importQuestionFile, keepPictures, questionFileTypes, type ImportResult } from './import';
   import { receivePicture, savePicture } from '../rich/pictures.svelte';
   import { library } from './store.svelte';
@@ -91,6 +92,7 @@
   const coming = $derived(picks.filter((p) => p.take));
   const comingCount = $derived(coming.reduce((n, p) => n + p.bank.questions.length, 0));
   const leftOut = $derived(result?.errors ?? []);
+  const pictureless = $derived(coming.reduce((n, p) => n + p.bank.questions.filter(needsPicture).length, 0));
 
   async function confirm() {
     const chosen = coming.map((p) => ({ ...$state.snapshot(p.bank), title: p.title.trim() || p.bank.title }) as QuestionBank);
@@ -138,6 +140,16 @@
         </details>
       {/if}
 
+      {#if pictureless}
+        <p class="needs-picture">
+          <ImagePlus size={16} aria-hidden="true" />
+          <span>
+            {plural(pictureless, 'question')} {pictureless === 1 ? 'needs' : 'need'} a Picture: the file says where one goes but couldn’t bring it.
+            They’re marked below and in the bank, so you can paste each one in.
+          </span>
+        </p>
+      {/if}
+
       <div class="review-grid">
         <ul class="banks" aria-label="Banks to import">
           {#each picks as p, i (i)}
@@ -156,6 +168,7 @@
             <ol>
               {#each picks[shown].bank.questions as q (q.id)}
                 <li>
+                  {#if needsPicture(q)}<span class="picture-badge"><ImagePlus size={13} aria-hidden="true" /> Needs a Picture</span>{/if}
                   <div class="prompt"><Rich rich={q.rich?.prompt} text={q.prompt} /></div>
                   <ul class="choices">
                     {#each q.choices as c, ci (ci)}<li class:right={ci === q.correct}><Rich rich={q.rich?.choices[ci]} text={c} /></li>{/each}
@@ -417,6 +430,33 @@
     padding: 0.6rem 0.8rem;
     border-radius: 10px;
     background: var(--bad-wash);
+  }
+  .needs-picture {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.6rem 0.8rem;
+    border-radius: 10px;
+    border: 1px solid var(--amber-border);
+    background: var(--accent-wash);
+    font-size: 0.92rem;
+  }
+  .needs-picture :global(svg) {
+    flex: none;
+    margin-top: 0.15rem;
+    color: var(--amber-strong);
+  }
+  .picture-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.2rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--amber-border);
+    color: var(--amber-strong);
+    font-size: 0.78rem;
+    font-weight: 700;
   }
   .left-out summary {
     font-weight: 700;

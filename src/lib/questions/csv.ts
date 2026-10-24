@@ -1,4 +1,5 @@
-import type { QuestionBank } from '../game/types';
+import type { Question, QuestionBank } from '../game/types';
+import { textWithMath } from '../rich/text-math';
 
 /**
  * Question sets as spreadsheets: what Export writes, the template, and the
@@ -10,6 +11,13 @@ function csvCell(value: string): string {
   return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
+/** A question's words for cells, its math written as `$…$` so it comes back as math. Pictures become Picture Notes. */
+const cells = (q: Question) => ({
+  prompt: q.rich ? textWithMath(q.rich.prompt) : q.prompt,
+  choices: q.choices.map((plain, i) => (q.rich?.choices[i] ? textWithMath(q.rich.choices[i]) : plain)),
+  explanation: q.rich?.explanation ? textWithMath(q.rich.explanation) : (q.explanation ?? ''),
+});
+
 /**
  * One or more banks as a spreadsheet. Each bank's title rides along on every
  * row, so importing the file gives back the same banks.
@@ -17,21 +25,22 @@ function csvCell(value: string): string {
 export function exportCsv(sets: QuestionBank | QuestionBank[]): string {
   const header = ['bank title', 'question', 'A', 'B', 'C', 'D', 'answer', 'explanation', 'topics'];
   const lines = [sets].flat().flatMap((set) =>
-    set.questions.map((q) =>
-      [
+    set.questions.map((q) => {
+      const { prompt, choices, explanation } = cells(q);
+      return [
         set.title,
-        q.prompt,
-        q.choices[0] ?? '',
-        q.choices[1] ?? '',
-        q.choices[2] ?? '',
-        q.choices[3] ?? '',
+        prompt,
+        choices[0] ?? '',
+        choices[1] ?? '',
+        choices[2] ?? '',
+        choices[3] ?? '',
         String.fromCharCode(65 + q.correct),
-        q.explanation ?? '',
+        explanation,
         (q.topics ?? []).join(', '),
       ]
         .map(csvCell)
-        .join(','),
-    ),
+        .join(',');
+    }),
   );
   return [header.join(','), ...lines].join('\n') + '\n';
 }
@@ -68,7 +77,8 @@ Rules:
 - "explanation" is optional: one short sentence on why the answer is right.
 - "topics" names the concepts a question covers, separated by commas (such as "fractions, word problems"). Reuse the same few topics across questions on the same concept.
 - Wrap any cell that contains a comma or a quotation mark in double quotes, and double any quotation marks inside it ("like ""this"""). Don't put line breaks inside cells.
-- Write math with plain characters such as − × ÷ ² √ π ≤ ≥, not LaTeX.
+- Write math as LaTeX between dollar signs, such as $\\frac{1}{2}$, $x^2$ or $\\sqrt{3}$, in questions and answer choices alike. Write money with the number right after the dollar sign ($5), never as LaTeX.
+- If a question or an answer choice needs a picture (a graph, diagram, figure, map or photo), keep it and write a picture note where the picture goes: [picture: what it shows], such as [picture: parabola opening down with vertex at (2, 3)]. Don't skip the question and don't replace the picture with a description of the answer.
 - Only include questions that are already multiple choice, with their answer choices as written. True/false questions count: use True and False as choices A and B. Skip every other kind of question (short answer, fill in the blank, essay, matching) instead of converting it.
 - Don't number the questions and don't add any other columns or text.
 

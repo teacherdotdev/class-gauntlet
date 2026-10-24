@@ -46,7 +46,7 @@
     {onkeydown}
     onblur={() => text && add(text)}
     list={listId}
-    placeholder={current.length ? 'Add a topic' : 'fractions, word problems…'}
+    placeholder={current.length ? 'Add a topic' : 'Empty'}
     aria-label={label}
   />
   <datalist id={listId}>
@@ -57,14 +57,22 @@
 </div>
 
 <style>
+  /* A front-matter value, as Test Parrot draws them: no box until you're in it. */
   .topics {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
     align-items: center;
-    padding: 0.35rem 0.5rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--line-strong);
+    min-height: 1.9rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+  }
+  .topics:hover {
+    background: var(--paper-low);
+  }
+  .topics:focus-within {
+    border-color: var(--accent);
     background: var(--paper);
   }
   .chip {
@@ -94,5 +102,8 @@
   }
   input:focus {
     outline: none;
+  }
+  input::placeholder {
+    color: color-mix(in srgb, var(--muted) 55%, var(--paper));
   }
 </style>

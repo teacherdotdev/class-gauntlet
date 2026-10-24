@@ -3,16 +3,21 @@
   // menu on each card, and a new bank opens straight into the editor. A file
   // dropped anywhere on the page goes to the importer.
   import { goto } from '$app/navigation';
-  import { Download, EllipsisVertical, Plus, Upload } from '@lucide/svelte';
+  import { EllipsisVertical, Plus, Upload } from '@lucide/svelte';
   import type { QuestionBank } from '#lib/game/types.ts';
   import ImportDialog from '#lib/questions/ImportDialog.svelte';
+  import ShareDialog from '#lib/questions/ShareDialog.svelte';
+  import { bankFileName, downloadBankFile, writeBankFile } from '#lib/questions/bank-file.ts';
   import { csvFileName, downloadCsv, exportCsv } from '#lib/questions/csv.ts';
+  import DownloadButton from '#lib/questions/DownloadButton.svelte';
+  import { pictureFile } from '#lib/rich/pictures.svelte.ts';
   import { sampleSetId } from '#lib/questions/sample.ts';
-  import { readShared, shareLink } from '#lib/questions/share.ts';
+  import { readShared } from '#lib/questions/share.ts';
   import { library } from '#lib/questions/store.svelte.ts';
   import { plural } from '#lib/words.ts';
 
   let importer: ImportDialog;
+  let sharer: ShareDialog;
   let notice = $state('');
   let shared = $state<Omit<QuestionBank, 'id' | 'updatedAt'> | null>(null);
   let menuFor = $state('');
@@ -41,20 +46,22 @@
     goto(`/banks/edit?id=${bank.id}&new=1`);
   }
 
-  function exportAll() {
-    const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(`class-gauntlet-banks-${stamp}.csv`, exportCsv($state.snapshot(library.sorted) as QuestionBank[]));
+  const stamp = () => new Date().toISOString().slice(0, 10);
+
+  /** Every bank in one Bank File, which imports back as the same banks, Pictures and all. */
+  async function exportAll() {
+    downloadBankFile(`class-gauntlet-banks-${stamp()}.parrot.zip`, await writeBankFile($state.snapshot(library.sorted) as QuestionBank[], pictureFile));
   }
 
-  async function copyShare(bank: QuestionBank) {
+  async function download(bank: QuestionBank) {
     menuFor = '';
-    const link = await shareLink(location.origin, $state.snapshot(bank) as QuestionBank);
-    try {
-      await navigator.clipboard.writeText(link);
-      flash(`Share link for “${bank.title}” copied.`);
-    } catch {
-      prompt('Copy this link:', link);
-    }
+    const set = $state.snapshot(bank) as QuestionBank;
+    downloadBankFile(bankFileName(set), await writeBankFile(set, pictureFile));
+  }
+
+  function share(bank: QuestionBank) {
+    menuFor = '';
+    void sharer.share($state.snapshot(bank) as QuestionBank);
   }
 
   function remove(bank: QuestionBank) {
@@ -103,7 +110,13 @@
   </div>
   <div class="actions">
     <button class="btn-ghost" onclick={() => importer.open()}><Upload size={17} aria-hidden="true" /> Import</button>
-    <button class="btn-ghost" onclick={exportAll} disabled={!library.sets.length} title="Download every bank as one CSV file"><Download size={17} aria-hidden="true" /> Export</button>
+    <DownloadButton
+      label="Export"
+      title="Download every bank as one file, Pictures and all"
+      disabled={!library.sets.some((set) => set.questions.length)}
+      ondownload={exportAll}
+      oncsv={() => downloadCsv(`class-gauntlet-banks-${stamp()}.csv`, exportCsv($state.snapshot(library.sorted) as QuestionBank[]))}
+    />
     <button class="btn-primary" onclick={newBank}><Plus size={17} aria-hidden="true" /> New bank</button>
   </div>
 </div>
@@ -151,8 +164,9 @@
         {#if menuFor === bank.id}
           <div class="menu" role="menu">
             <button role="menuitem" onclick={() => goto(`/banks/edit?id=${bank.id}`)}>Open</button>
-            <button role="menuitem" onclick={() => copyShare(bank)}>Copy share link</button>
-            <button role="menuitem" disabled={!bank.questions.length} onclick={() => { downloadCsv(csvFileName(bank.title), exportCsv($state.snapshot(bank) as QuestionBank)); menuFor = ''; }}>Download CSV</button>
+            <button role="menuitem" disabled={!bank.questions.length} onclick={() => share(bank)}>Share</button>
+            <button role="menuitem" disabled={!bank.questions.length} onclick={() => download(bank)}>Download</button>
+            <button role="menuitem" disabled={!bank.questions.length} onclick={() => { downloadCsv(csvFileName(bank.title), exportCsv($state.snapshot(bank) as QuestionBank)); menuFor = ''; }}>Download as spreadsheet (CSV)</button>
             <button role="menuitem" onclick={() => { const copy = library.duplicate(bank.id); menuFor = ''; if (copy) goto(`/banks/edit?id=${copy.id}`); }}>Duplicate</button>
             <hr />
             <button role="menuitem" class="danger" onclick={() => remove(bank)}>Delete</button>
@@ -173,6 +187,7 @@
 {/if}
 
 <ImportDialog bind:this={importer} onimported={flash} />
+<ShareDialog bind:this={sharer} onshared={flash} />
 
 <style>
   .head {

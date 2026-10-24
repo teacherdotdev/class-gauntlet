@@ -17,3 +17,16 @@ export const everyChange = (onchange: (view: EditorView) => void) =>
         }),
       }),
   );
+
+/** Hears the cursor move or the formatting about to be typed change, as the toolbar needs to show what's on. */
+export const everySelection = (onselect: (view: EditorView) => void) =>
+  $prose(
+    () =>
+      new Plugin({
+        view: () => ({
+          update(view, previous) {
+            if (!view.state.selection.eq(previous.selection) || view.state.storedMarks !== previous.storedMarks) onselect(view);
+          },
+        }),
+      }),
+  );

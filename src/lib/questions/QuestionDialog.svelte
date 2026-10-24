@@ -1,12 +1,19 @@
 <script lang="ts">
-  // Editing one question, in a pop-up over the bank. Topics come first, as
-  // front matter. It works on a copy: Save question (or Cmd/Ctrl+Enter) keeps
-  // it; Cancel or Escape lets it go, asking first if anything changed.
-  import { Check, Plus, Trash2, X } from '@lucide/svelte';
+  // Editing one question, in a pop-up over the bank, laid out the way Test
+  // Parrot's question editor is: the question's front matter (its Topics) in
+  // rows at the top, then the question as a page, its answers in one dashed
+  // box with a radio to mark the right one, and why it's right underneath.
+  // One toolbar at the top acts on whichever part the teacher is in (the
+  // question, until they pick another). It works on a copy: Save question (or
+  // Cmd/Ctrl+Enter) keeps it; Cancel or Escape lets it go, asking first if
+  // anything changed.
+  import { Plus, Tags, Trash2, X } from '@lucide/svelte';
   import { untrack } from 'svelte';
   import TopicInput from '../components/TopicInput.svelte';
   import type { Question } from '../game/types';
   import RichEditor from '../rich/RichEditor.svelte';
+  import RichToolbar from '../rich/RichToolbar.svelte';
+  import { noFormats, type Formats, type RichCommand } from '../rich/toolbar';
   import { fromPlain, plainOf, type RichQuestion, type RichText } from '../rich/text';
   import { cleanQuestion, questionProblems } from './edit';
 
@@ -45,6 +52,11 @@
   let nextKey = 0;
   let keys = $state(untrack(() => question.choices.map(() => nextKey++)));
   let problems = $state<string[]>([]);
+  /** Every field's editor, and the one the toolbar acts on. */
+  const editors: Record<string, RichEditor> = {};
+  let active = 'prompt';
+  let formats = $state<Formats>(noFormats);
+  let pictureProblem = $state('');
   let dialog: HTMLDialogElement;
   const current = (): Question => cleanQuestion({ ...$state.snapshot(draft), rich: $state.snapshot(rich) } as Question);
   const dirty = $derived(JSON.stringify(current()) !== JSON.stringify(cleanQuestion(question)));
@@ -58,6 +70,17 @@
     const saved = current();
     problems = questionProblems(saved);
     if (!problems.length) onsave(saved);
+  }
+
+  const field = (name: string) => ({
+    onfocus: () => (active = name),
+    onformats: (next: Formats) => (formats = next),
+    onproblem: (message: string) => (pictureProblem = message),
+  });
+
+  function runTool(command: RichCommand) {
+    pictureProblem = '';
+    (editors[active] ?? editors.prompt)?.run(command);
   }
 
   function setChoice(i: number, value: RichText) {
@@ -107,60 +130,74 @@
     <button class="icon" onclick={close} aria-label="Close"><X size={18} /></button>
   </header>
 
-  <div class="fields">
-    <div class="front">
-      <span>Topics</span>
+  <div class="front">
+    <div class="row">
+      <span class="prop"><Tags size={14} aria-hidden="true" /> Topics</span>
       <TopicInput bind:topics={draft.topics} suggestions={knownTopics} label="Topics" />
     </div>
-    <div class="field">
-      <span>Question</span>
+  </div>
+
+  <div class="tools"><RichToolbar {formats} onrun={runTool} /></div>
+
+  <div class="page">
+    <div class="sheet">
       <RichEditor
+        bind:this={editors.prompt}
         value={rich.prompt}
         onchange={(value) => ((rich.prompt = value), (draft.prompt = plainOf(value)))}
         label="Question"
-        placeholder="e.g. What is 7 × 8? Type / for a picture, math or a table."
+        placeholder="Write the question. Type / for lists, tables and more."
         autofocus={isNew}
+        {...field('prompt')}
       />
-    </div>
 
-    <fieldset>
-      <legend>Answers <small>(click a letter to mark the right one)</small></legend>
-      {#each keys as key, i (key)}
-        <div class="choice" class:right={draft.correct === i}>
-          <button
-            type="button"
-            class="mark"
-            onclick={() => (draft.correct = i)}
-            aria-pressed={draft.correct === i}
-            aria-label="{letter(i)} is the right answer"
-          >
-            {#if draft.correct === i}<Check size={16} />{:else}{letter(i)}{/if}
-          </button>
-          <div class="answer"><RichEditor value={rich.choices[i]} onchange={(value) => setChoice(i, value)} label="Answer {letter(i)}" placeholder="Answer {letter(i)}" /></div>
-          {#if draft.choices.length > 2}
-            <button type="button" class="icon" onclick={() => removeChoice(i)} aria-label="Remove answer {letter(i)}"><X size={16} /></button>
-          {/if}
-        </div>
-      {/each}
-      {#if draft.choices.length < 4}
-        <button type="button" class="btn-quiet add" onclick={addChoice}><Plus size={15} aria-hidden="true" /> Add answer {letter(draft.choices.length)}</button>
+      <div class="answers" role="group" aria-label="Answers">
+        {#each keys as key, i (key)}
+          <div class="choice" class:right={draft.correct === i}>
+            <button
+              type="button"
+              class="radio"
+              onclick={() => (draft.correct = i)}
+              aria-pressed={draft.correct === i}
+              aria-label="{letter(i)} is the right answer"
+              title="Mark as the right answer"
+            ></button>
+            <div class="answer">
+              <RichEditor
+                bind:this={editors[`choice-${key}`]}
+                value={rich.choices[i]}
+                onchange={(value) => setChoice(i, value)}
+                label="Answer {letter(i)}"
+                placeholder="Answer"
+                {...field(`choice-${key}`)}
+              />
+            </div>
+            {#if draft.choices.length > 2}
+              <button type="button" class="remove" onclick={() => removeChoice(i)} aria-label="Remove answer {letter(i)}" title="Remove this answer"><X size={15} /></button>
+            {/if}
+          </div>
+        {/each}
+        {#if draft.choices.length < 4}
+          <button type="button" class="add" onclick={addChoice}><Plus size={15} aria-hidden="true" /> Add answer</button>
+        {/if}
+      </div>
+
+      <div class="why">
+        <span class="prop">Explanation</span>
+        <RichEditor
+          value={rich.explanation ?? fromPlain('')}
+          onchange={(value) => ((rich.explanation = value), (draft.explanation = plainOf(value)))}
+          label="Explanation"
+          placeholder="Explain the answer"
+          {...field('explanation')}
+        />
+      </div>
+
+      {#if pictureProblem}<p class="problems" role="alert">{pictureProblem}</p>{/if}
+      {#if problems.length}
+        <ul class="problems" role="alert">{#each problems as p (p)}<li>{p}</li>{/each}</ul>
       {/if}
-    </fieldset>
-
-    <div class="field">
-      <span>Why it’s right <small>(optional, shown after the answer)</small></span>
-      <RichEditor
-        value={rich.explanation ?? fromPlain('')}
-        onchange={(value) => ((rich.explanation = value), (draft.explanation = plainOf(value)))}
-        label="Why it’s right"
-        placeholder="A short explanation"
-      />
     </div>
-
-
-    {#if problems.length}
-      <ul class="problems" role="alert">{#each problems as p (p)}<li>{p}</li>{/each}</ul>
-    {/if}
   </div>
 
   <footer>
@@ -173,15 +210,16 @@
 
 <style>
   .qdialog {
-    width: min(48rem, calc(100vw - 2rem));
-    max-height: calc(100dvh - 2rem);
+    width: min(61rem, calc(100vw - 2rem));
+    height: min(51rem, calc(100dvh - 2rem));
     padding: 0;
     border: 0;
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--paper);
     color: var(--ink);
     box-shadow: var(--shadow-dialog);
     flex-direction: column;
+    overflow: hidden;
   }
   .qdialog[open] {
     display: flex;
@@ -190,27 +228,17 @@
     background: rgb(36 28 23 / 0.45);
     backdrop-filter: blur(2px);
   }
-  .front {
-    display: grid;
-    grid-template-columns: 5rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.75rem;
-    padding-bottom: 0.9rem;
-    border-bottom: 1px solid var(--line);
-    font-weight: 700;
-  }
-  .front :global(.topics) {
-    font-weight: 400;
-  }
   header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.1rem 0.5rem;
+    gap: 1rem;
+    padding: 0.45rem 0.6rem 0.45rem 1.1rem;
+    border-bottom: 1px solid var(--line);
   }
   h2 {
     font-family: var(--serif);
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+    margin-right: auto;
   }
   .icon {
     display: grid;
@@ -228,78 +256,141 @@
     background: var(--paper-low);
     color: var(--ink);
   }
-  .fields {
+  /* The front matter hangs off the same left edge as the question below it. */
+  .front {
+    padding: 0.7rem max(2.25rem, calc((100% - 45rem) / 2));
+    border-bottom: 1px solid var(--line);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .row :global(.topics) {
     flex: 1;
+  }
+  .prop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 0 7.5rem;
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+  }
+  .page {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
+  }
+  .sheet {
     display: grid;
     align-content: start;
-    gap: 1rem;
-    padding: 0.5rem 1.1rem 1rem;
+    gap: 1.4rem;
+    padding: 2rem max(2.25rem, calc((100% - 45rem) / 2)) 2.5rem;
   }
-  fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 0.45rem;
+  /* The toolbar runs across the dialog under the front matter, as Google
+     Docs' does, its buttons starting at the question's own left margin. */
+  .tools {
+    display: flex;
+    padding: 0.3rem calc(max(2.25rem, calc((100% - 45rem) / 2)) - 0.5rem);
+    border-bottom: 1px solid var(--line);
   }
-  legend {
-    font-weight: 700;
-    margin-bottom: 0.35rem;
+  .sheet > :global(.rich-editor .ProseMirror p) {
+    font-size: 1.05rem;
   }
-  legend small,
-  .field small {
-    font-weight: 400;
-    color: var(--muted);
+  /* Answers as Test Parrot draws them: dashed cells you type into, a radio
+     hard against the left of each, and Add answer along the bottom. */
+  .answers {
+    border: 1px dashed var(--line-strong);
+    border-radius: 6px;
+    overflow: hidden;
   }
   .choice {
     display: flex;
     align-items: flex-start;
-    gap: 0.4rem;
+    gap: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px dashed var(--line-strong);
   }
-  .choice > .mark,
-  .choice > .icon {
-    margin-top: 0.15rem;
+  .choice.right {
+    background: var(--good-wash);
   }
   .answer {
     flex: 1;
     min-width: 0;
   }
-  .choice.right .answer :global(.rich-editor) {
-    border-color: var(--good-line);
-    box-shadow: inset 4px 0 0 var(--good);
-  }
-  .field {
-    display: grid;
-    gap: 0.35rem;
-  }
-  .field > span {
-    font-weight: 700;
-  }
-  .mark {
-    display: grid;
-    place-items: center;
-    width: 2.1rem;
-    height: 2.1rem;
+  .radio {
     flex: none;
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.22rem;
+    padding: 0;
+    border: 1.5px solid var(--muted);
     border-radius: 50%;
-    border: 1.5px solid var(--line-strong);
     background: var(--paper);
-    color: var(--muted);
-    font: inherit;
-    font-weight: 800;
     cursor: pointer;
   }
-  .choice.right .mark {
+  .radio:hover {
     border-color: var(--good);
-    background: var(--good);
-    color: var(--paper);
+  }
+  .choice.right .radio {
+    border-color: var(--good);
+    background: radial-gradient(circle, var(--good) 0 45%, var(--paper) 50%);
+  }
+  .remove {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .choice:hover .remove,
+  .choice:focus-within .remove,
+  .remove:focus-visible {
+    opacity: 1;
+  }
+  .remove:hover {
+    background: var(--paper-low);
+    color: var(--ink);
   }
   .add {
-    justify-self: start;
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    background: none;
+    color: var(--ink-soft);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .add:hover {
+    background: var(--paper-low);
+    color: var(--accent);
+  }
+  .choice:last-of-type:not(:has(+ .add)) {
+    border-bottom: 0;
+  }
+  /* Its own dashed box, drawn like the answers, so what's written in it plainly belongs to it. */
+  .why {
+    display: grid;
     gap: 0.3rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: 6px;
+  }
+  .why .prop {
+    flex: none;
   }
   .problems {
     padding: 0.6rem 0.9rem 0.6rem 1.8rem;
@@ -307,11 +398,14 @@
     background: var(--bad-wash);
     color: var(--bad);
   }
+  p.problems {
+    padding-left: 0.9rem;
+  }
   footer {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.8rem 1.1rem;
+    padding: 0.7rem 1.1rem;
     border-top: 1px solid var(--line);
   }
   footer .danger {

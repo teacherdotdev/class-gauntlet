@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { Question } from '../game/types';
 import { fromPlain, type RichText } from '../rich/text';
-import { cleanQuestion, questionProblems } from './edit';
+import { cleanQuestion, needsPicture, questionProblems, withTextMathAsMath } from './edit';
 
 const q = (over: Partial<Question> = {}): Question => ({ id: 'q', prompt: 'What is 7 × 8?', choices: ['54', '56'], correct: 1, ...over });
 
@@ -38,4 +38,17 @@ test('a saved question’s plain text follows its rich text, which is kept only 
   expect(kept).toEqual({ id: 'q', prompt: 'x^2', choices: ['4', '9'], correct: 1, rich: { prompt: math('x^2'), choices: [fromPlain('4'), fromPlain('9')] } });
   const plain = cleanQuestion(q({ rich: { prompt: fromPlain('Plain?'), choices: [fromPlain('a'), fromPlain('b')] } }));
   expect(plain).toEqual({ id: 'q', prompt: 'Plain?', choices: ['a', 'b'], correct: 1 });
+});
+
+test('math written as $…$ in a bank already imported can be turned into math', () => {
+  const turned = withTextMathAsMath(q({ prompt: 'Simplify $x^2 \\cdot x^3$', choices: ['$x^5$', '$x^6$'] }));
+  expect(turned?.rich?.choices[0]).toEqual([{ type: 'paragraph', content: [{ type: 'inline-math', source: 'x^5' }] }]);
+  expect(turned?.prompt).toBe('Simplify x^2 \\cdot x^3');
+  expect(withTextMathAsMath(q({ prompt: 'It costs $5.' }))).toBeNull();
+});
+
+test('a real picture isn’t a Picture Note, even with no description', () => {
+  const picture: RichText = [{ type: 'block-image', asset: 'abc' }];
+  expect(needsPicture(q({ rich: { prompt: picture, choices: [fromPlain('54'), fromPlain('56')] } }))).toBe(false);
+  expect(needsPicture(q({ prompt: 'Which is it? [picture]' }))).toBe(true);
 });

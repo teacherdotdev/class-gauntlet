@@ -10,6 +10,8 @@ import {
 import type { Question, QuestionBank } from '../game/types';
 import { randomId } from '../game/engine';
 import { hasContent, isPlain, picturesIn, renamePictures, type RichText } from '../rich/text';
+import { mathFromText } from '../rich/text-math';
+import { isBankFile, readBankFile } from './bank-file';
 import { cleanQuestion } from './edit';
 
 /**
@@ -18,11 +20,12 @@ import { cleanQuestion } from './edit';
  * Canvas, Blackboard, Respondus and more, as CSV, Excel, Word or text. Each Question Bank it reads becomes a
  * set. The game plays only multiple choice with one right answer and two to
  * four choices, so every other question is left out and the teacher is told
- * which and why. Formatting, math and pictures come along.
+ * which and why. Formatting, math and pictures come along, and math a
+ * spreadsheet writes as `$…$` becomes math.
  */
 
-/** For the file picker: every file type a Format arrives as. */
-export const questionFileTypes = QUESTION_FILE_EXTENSIONS.join(',');
+/** For the file picker: every file type a Format arrives as, and a Test Parrot package written as bare JSON. */
+export const questionFileTypes = [...QUESTION_FILE_EXTENSIONS, '.json'].join(',');
 
 /**
  * `errors` are the questions (or the file) that were left out. `pictures`
@@ -52,6 +55,8 @@ function unplayable(q: BankQuestion): string | null {
 }
 
 export async function importQuestionFile(file: { name: string; bytes: Uint8Array }): Promise<ImportResult> {
+  // Bank Files (and Test Parrot's own packages) are read here, not by Question Commons.
+  if (isBankFile(file)) return readBankFile(file);
   let reading;
   try {
     reading = await readQuestionFile(file);
@@ -79,7 +84,11 @@ export async function importQuestionFile(file: { name: string; bytes: Uint8Array
           choices: [],
           correct: q.choices.findIndex((c) => c.correct),
           ...(q.topics?.length ? { topics: q.topics } : {}),
-          rich: { prompt: q.stem, choices: q.choices.map((c) => c.content), ...(q.explanation ? { explanation: q.explanation } : {}) },
+          rich: {
+            prompt: mathFromText(q.stem),
+            choices: q.choices.map((c) => mathFromText(c.content)),
+            ...(q.explanation ? { explanation: mathFromText(q.explanation) } : {}),
+          },
         }),
       );
     }

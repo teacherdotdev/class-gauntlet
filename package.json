@@ -18,6 +18,7 @@
     "@milkdown/kit": "^7.21.1",
     "@teacherdotdev/question-commons": "0.3.1",
     "canvas-confetti": "^1.9.4",
+    "jszip": "^3.10.2",
     "katex": "^0.18.0",
     "peerjs": "^1.5.5",
     "qrcode-generator": "^2.0.4"
@@ -30,6 +31,7 @@
     "@types/bun": "latest",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^26.6.4",
+    "ajv": "^8.20.0",
     "prettier": "^3.9.9",
     "prettier-plugin-svelte": "^3.4.0",
     "svelte": "^5.56.9",

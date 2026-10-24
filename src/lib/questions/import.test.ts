@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { aiInstructions, exportCsv, templateCsv } from './csv';
+import { needsPicture } from './edit';
 import { importPasted, importQuestionFile, keepPictures } from './import';
 
 const file = (name: string, text: string) => ({ name, bytes: new TextEncoder().encode(text) });
@@ -167,4 +168,22 @@ test('topics survive export and re-import, and other formats’ topics come thro
     '$CATEGORY: $course$/Social Studies/Geography\n\nCapital of France? {=Paris ~Rome ~Oslo}\n';
   const moodle = await importQuestionFile(file('quiz.gift', gift));
   expect(moodle.sets.flatMap((s) => s.questions.map((q) => q.topics))).toEqual([['Geography']]);
+});
+
+test('math a spreadsheet writes as $…$ becomes math, in questions and answers, and survives export', async () => {
+  const csv = ['question,A,B,answer', 'What is $\\frac{1}{2}$ of 8?,$4$,$2^3$,A', 'Which costs more: $5 or $10?,$5,$10,B'].join('\n');
+  const { sets, errors } = await importPasted(csv);
+  expect(errors).toEqual([]);
+  const [half, money] = sets[0].questions;
+  expect(half.rich?.prompt[0].content?.[1]).toEqual({ type: 'inline-math', source: '\\frac{1}{2}' });
+  expect(half.rich?.choices[1]).toEqual([{ type: 'paragraph', content: [{ type: 'inline-math', source: '2^3' }] }]);
+  expect(money.rich).toBeUndefined();
+  expect(money.prompt).toBe('Which costs more: $5 or $10?');
+  const again = await importPasted(exportCsv(sets[0]));
+  expect(again.sets[0].questions.map((q) => q.rich)).toEqual(sets[0].questions.map((q) => q.rich));
+});
+
+test('a picture note from an AI chat marks the question as needing a Picture', async () => {
+  const { sets } = await importPasted('question,A,B,answer\nWhich graph opens down? [picture: two parabolas],Left,Right,A\nWhat is 2 + 2?,4,5,A\n');
+  expect(sets[0].questions.map(needsPicture)).toEqual([true, false]);
 });
