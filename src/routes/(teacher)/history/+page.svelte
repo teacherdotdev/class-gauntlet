@@ -23,7 +23,7 @@
         <button class="summary" onclick={() => (open = open === r.id ? '' : r.id)} aria-expanded={open === r.id}>
           <span class="mode {r.mode}">{r.mode === 'peril' ? 'Peril!' : r.mode === 'classic' ? 'Classic' : 'Champion'}</span>
           <span class="title">{r.title}</span>
-          <span class="meta">{when(r.endedAt)} · {minutes(r.endedAt - r.startedAt)} · {plural(r.players.length, 'student')}</span>
+          <span class="meta">{when(r.endedAt)} · {minutes(r.endedAt - r.startedAt)} · {r.bigScreen ? 'On the Big Screen' : plural(r.players.length, 'student')}</span>
           {#if first}<span class="winner">👑 {first}</span>{/if}
         </button>
         {#if open === r.id}

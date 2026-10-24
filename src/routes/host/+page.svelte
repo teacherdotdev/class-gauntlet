@@ -10,6 +10,7 @@
   import PerilArena from '#lib/host/PerilArena.svelte';
   import PerilLobby from '#lib/host/PerilLobby.svelte';
   import { goto } from '$app/navigation';
+  import FullscreenButton from '#lib/host/FullscreenButton.svelte';
   import SettingsDialog from '#lib/host/SettingsDialog.svelte';
   import { spacedCode } from '#lib/protocol.ts';
 
@@ -23,13 +24,17 @@
   // Closing this tab ends the game for everyone, so ask first.
   function beforeUnload(event: BeforeUnloadEvent) {
     const session = host.session ?? host.peril ?? host.classic;
-    if (session && session.phase !== 'ENDED' && session.players.length > 0) event.preventDefault();
+    const underway = session?.bigScreen ? session.phase !== 'LOBBY' : !!session?.players.length;
+    if (session && session.phase !== 'ENDED' && underway) event.preventDefault();
   }
+  const title = $derived(
+    !host.active ? 'Host a game' : host.bigScreen ? 'Big Screen' : `PIN ${spacedCode((host.session ?? host.peril ?? host.classic)!.code)}`,
+  );
 </script>
 
 <svelte:window onbeforeunload={beforeUnload} />
 <svelte:head>
-  <title>{host.active ? `PIN ${spacedCode((host.session ?? host.peril ?? host.classic)!.code)}` : 'Host a game'} · Class Gauntlet</title>
+  <title>{title} · Class Gauntlet</title>
 </svelte:head>
 
 {#if host.classic}
@@ -58,6 +63,7 @@
   </div>
   <SettingsDialog bind:this={settings} />
 {/if}
+{#if host.active}<FullscreenButton />{/if}
 
 <style>
   /* A torch-lit hall: dark stone with warm light from above. */

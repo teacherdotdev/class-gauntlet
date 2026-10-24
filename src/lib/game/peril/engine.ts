@@ -23,6 +23,10 @@ import {
  *   LOBBY ─startBoard→ BOARD ─pickTile→ READING ─armBuzzers→ BUZZING ─buzz→ ANSWERING ─answer→ REVEAL ─next→ BOARD …
  *   A Treasure Trove goes BOARD ─pickTile→ WAGERING ─wagers in→ ANSWERING.
  *   When every Tile is played, REVEAL ─next→ FINAL ─startBoard→ BOARD …
+ *
+ * On the Big Screen the Teams have no members: the teacher taps the Team that
+ * buzzed (buzzFor), the choice it gave (answerFor) and a Treasure Trove's
+ * Wager (wagerFor). Only the Buzz has a clock.
  */
 
 const ok: Result = { ok: true };
@@ -33,6 +37,7 @@ const systemClock: Clock = { now: () => Date.now(), random: () => Math.random() 
 export function createPerilSession(input: {
   code: string;
   settings?: Partial<PerilSettings>;
+  bigScreen?: boolean;
   clock?: Clock;
 }): PerilSession {
   const clock = input.clock ?? systemClock;
@@ -42,6 +47,7 @@ export function createPerilSession(input: {
     version: 1,
     code: input.code,
     createdAt: clock.now(),
+    ...(input.bigScreen ? { bigScreen: true } : {}),
     settings,
     players: [],
     teams: (settings.teams?.names ?? []).map((name) => ({
@@ -87,10 +93,11 @@ export class PerilEngine {
     return this.session.settings.teams ? player.teamId : player.id;
   }
 
-  /** Every contender who can play: each student in Solo, each Team with a member in Teams. */
+  /** Every contender who can play: each student in Solo, each Team with a member in Teams, every Team on the Big Screen. */
   contenders(): string[] {
     const s = this.session;
     if (!s.settings.teams) return s.players.map((p) => p.id);
+    if (s.bigScreen) return s.teams.map((team) => team.id);
     return s.teams
       .filter((team) => s.players.some((p) => p.teamId === team.id))
       .map((team) => team.id);
@@ -277,7 +284,7 @@ export class PerilEngine {
     // A Treasure Trove belongs to whoever found it: no buzzers.
     s.open.answering = s.control;
     s.open.buzzer = s.settings.teams ? null : s.control;
-    s.open.deadline = this.clock.now() + s.settings.wagerSeconds * 1000;
+    s.open.deadline = s.bigScreen ? null : this.clock.now() + s.settings.wagerSeconds * 1000;
     s.phase = 'WAGERING';
     return this.changed();
   }
@@ -318,11 +325,24 @@ export class PerilEngine {
       : amounts.length % 2
         ? amounts[middle]
         : Math.floor((amounts[middle - 1] + amounts[middle]) / 2);
-    open.deadline =
-      this.clock.now() +
-      (s.settings.teams ? s.settings.voteSeconds : s.settings.answerSeconds) * 1000;
+    open.deadline = s.bigScreen
+      ? null
+      : this.clock.now() +
+        (s.settings.teams ? s.settings.voteSeconds : s.settings.answerSeconds) * 1000;
     s.phase = 'ANSWERING';
     return this.changed();
+  }
+
+  /** On the Big Screen: the Wager the Team with the Treasure Trove says out loud. */
+  wagerFor(amount: number): Result {
+    const s = this.session;
+    const open = s.open;
+    if (!s.bigScreen) return no('Students wager on their devices.');
+    if (s.phase !== 'WAGERING' || !open?.answering) return no('There’s nothing to wager on.');
+    if (!Number.isFinite(amount)) return no('Enter a number of points.');
+    const clamped = Math.min(this.maxWager(open.answering), Math.max(5, Math.floor(amount)));
+    open.wagers = [{ playerId: open.answering, amount: clamped }];
+    return this.settleWager();
   }
 
   armBuzzers(): Result {
@@ -354,6 +374,35 @@ export class PerilEngine {
       (s.settings.teams ? s.settings.voteSeconds : s.settings.answerSeconds) * 1000;
     s.phase = 'ANSWERING';
     return this.changed();
+  }
+
+  /** On the Big Screen: the Team that buzzed first, as the teacher saw it. */
+  buzzFor(contender: string): Result {
+    const s = this.session;
+    const open = s.open;
+    if (!s.bigScreen) return no('Students buzz on their devices.');
+    if (s.phase !== 'BUZZING' || !open) return no('The buzzers aren’t armed.');
+    if (!this.contenders().includes(contender)) return no('There’s no such team.');
+    if (open.lockedOut.includes(contender)) return no('That team has had its try at this one.');
+    open.answering = contender;
+    open.buzzer = null;
+    open.votes = [];
+    open.deadline = null;
+    s.phase = 'ANSWERING';
+    return this.changed();
+  }
+
+  /** On the Big Screen: the answer the Team gave out loud. */
+  answerFor(choice: number): Result {
+    const s = this.session;
+    const open = s.open;
+    const tile = this.openTile;
+    if (!s.bigScreen) return no('Students answer on their devices.');
+    if (s.phase !== 'ANSWERING' || !open?.answering || !tile) return no('There’s nothing to answer.');
+    if (!Number.isInteger(choice) || choice < 0 || choice >= tile.question.choices.length)
+      return no('Pick one of the answers.');
+    open.votes = [{ playerId: open.answering, choice, at: this.clock.now() }];
+    return this.settle();
   }
 
   answer(playerId: string, choice: number): Result {

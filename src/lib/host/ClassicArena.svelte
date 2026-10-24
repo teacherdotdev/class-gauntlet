@@ -3,10 +3,13 @@
   // answered, then the answer with how many chose each (never who). At the
   // end, the Report: the class's results per question, and each student's
   // results behind a button, since the board is on show to the class.
+  // On the Big Screen there are no answers to count: the timer is a guide,
+  // the teacher shows the answer, and the end is just the end.
   import Rich from '../rich/Rich.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
   import TimerRing from '../components/TimerRing.svelte';
   import { host } from '../host.svelte';
+  import { hostKey } from './keys';
   import { spacedCode } from '../protocol';
   import { plural } from '../words';
 
@@ -15,11 +18,27 @@
   const q = $derived(v.question);
   let showStudents = $state(false);
   const pct = (n: number, of: number) => (of ? Math.round((100 * n) / of) : 0);
+  // On the Big Screen nothing moves when time's up, so watch the clock here.
+  let now = $state(Date.now());
+  $effect(() => {
+    const timer = setInterval(() => (now = Date.now()), 250);
+    return () => clearInterval(timer);
+  });
+  const timeUp = $derived(v.phase === 'QUESTION' && s.deadline !== null && now >= s.deadline);
+
+  function onkeydown(event: KeyboardEvent) {
+    if (hostKey(event)?.kind !== 'next') return;
+    event.preventDefault();
+    if (v.phase === 'QUESTION') host.runClassic((e) => e.lock());
+    else if (v.phase === 'REVEAL') host.runClassic((e) => e.next());
+  }
 </script>
+
+<svelte:window {onkeydown} />
 
 <div class="arena">
   <header class="top">
-    <span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>
+    {#if v.bigScreen}<span class="pin">Big Screen</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
     <span class="where">{q ? `Question ${q.number} of ${q.total}` : v.title}</span>
     {#if v.phase !== 'ENDED'}<button class="quiet" onclick={() => host.finish()}>End game</button>{/if}
   </header>
@@ -38,15 +57,21 @@
             {text} rich={q.rich?.choices[i]}
             big
             state={q.correct === null ? 'idle' : i === q.correct ? 'correct' : 'faded'}
-            count={q.counts ? q.counts[i] : null}
+            count={q.counts && !v.bigScreen ? q.counts[i] : null}
             total={q.answered}
           />
         {/each}
       </div>
       <div class="foot">
-        {#if v.phase === 'QUESTION'}
+        {#if v.phase === 'QUESTION' && v.bigScreen}
+          <p class="status">{timeUp ? 'Time’s up! Answers up, everyone.' : 'Answer on your whiteboard or with your hand.'}</p>
+          <button class="go" onclick={() => host.runClassic((e) => e.lock())}>Show the answer ▸</button>
+        {:else if v.phase === 'QUESTION'}
           <p class="status"><strong>{q.answered}</strong> of {q.answering} answered</p>
           <button class="quiet" onclick={() => host.runClassic((e) => e.lock())}>Show the answer now</button>
+        {:else if v.bigScreen}
+          <p class="status">{#if q.explanation}<Rich rich={q.rich?.explanation} text={q.explanation} />{/if}</p>
+          <button class="go" onclick={() => host.runClassic((e) => e.next())}>{q.number < q.total ? 'Next question ▸' : 'Finish ▸'}</button>
         {:else}
           <p class="status">
             <strong>{pct(q.counts?.[q.correct ?? 0] ?? 0, q.answered)}%</strong> got it right{#if q.explanation} · <Rich rich={q.rich?.explanation} text={q.explanation} />{/if}
@@ -54,6 +79,16 @@
           <button class="go" onclick={() => host.runClassic((e) => e.next())}>{q.number < q.total ? 'Next question ▸' : 'See the report ▸'}</button>
         {/if}
       </div>
+    </section>
+  {:else if v.bigScreen && (v.phase === 'REPORT' || v.phase === 'ENDED')}
+    <section class="done">
+      <h1 class="big-title">That’s every question!</h1>
+      <p>{plural(v.question?.total ?? s.questions.length, 'question')} reviewed together.</p>
+      {#if v.phase === 'REPORT'}
+        <button class="go" onclick={() => host.finish()}>End the review</button>
+      {:else}
+        <a class="go" href="/games" onclick={() => host.close()}>Back to games</a>
+      {/if}
     </section>
   {:else if v.report}
     <section class="report">
@@ -179,6 +214,18 @@
     color: var(--ink);
     cursor: pointer;
     box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.18);
+  }
+  .done {
+    flex: 1;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 1.25rem;
+    text-align: center;
+    font-size: 1.3rem;
+  }
+  .done a.go {
+    text-decoration: none;
   }
   .report {
     display: grid;

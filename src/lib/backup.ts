@@ -14,6 +14,7 @@ const keys = {
   perilSetup: 'classgauntlet:peril-setup',
   classicRules: 'classgauntlet:classic-rules',
   classicDeck: 'classgauntlet:classic-deck',
+  bigScreen: 'classgauntlet:big-screen',
 } as const;
 
 export type BackupPart = keyof typeof keys;

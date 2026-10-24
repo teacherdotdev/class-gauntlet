@@ -1,14 +1,18 @@
 # Class Gauntlet
 
-A classroom review game: a teacher hosts from one tab, students join on their own devices, and the class plays through review questions in one of several Game Modes.
+A classroom review game: a teacher hosts from one tab, students join on their own devices or everyone plays on the Big Screen, and the class plays through review questions in one of several Game Modes.
 
 ## Language
 
 ### Hosting
 
 **Session**:
-One hosted room, from opening the lobby to the final standings, played in one Game Mode under one PIN.
+One hosted room, from opening the lobby to the final standings, played in one Game Mode, under one PIN when students join on their own devices.
 _Avoid_: Room, match
+
+**Big Screen**:
+How a Session is played when students have no devices: the whole game happens on the one screen at the front of the room, and the teacher enters every choice. A Session is played either on students' devices or on the Big Screen, never a mix, and every Game Mode can be played both ways.
+_Avoid_: Projector mode, smartboard mode, teacher mode, offline mode, no-device mode
 
 **Game Mode**:
 The rules a Session is played by. The teacher picks it first, then sets the Session up for it.
@@ -26,7 +30,7 @@ _Avoid_: Tag, category
 A question's words with formatting, math and pictures, in the shape Question Commons uses. Every question also keeps them as plain text, for search, spreadsheets and History. A picture lives in the teacher's browser and is sent to each phone that needs it.
 
 **History**:
-The record, kept in the teacher's browser, of every finished Session: when, which Game Mode, and how each student or Team placed.
+The record, kept in the teacher's browser, of every finished Session that had someone to place: when, which Game Mode, whether it was on the Big Screen, and how each student or Team placed.
 
 **Backup**:
 One file holding everything the teacher's browser keeps: Question Banks, History, and each Game Mode's remembered rules and setup. Importing a Backup replaces it all. A Game Mode's rules are set while hosting it and remembered for next time; Settings holds only the Backup.
@@ -43,6 +47,10 @@ _Avoid_: Challenger, Gauntlet, 1v100, Spotlight Player, The One
 **The Class**:
 Everyone in a Champion game who is still challenging the Champion.
 _Avoid_: Mob
+
+**Class Majority**:
+The choice most of The Class picked, as the teacher enters it on the Big Screen. In a Big Screen Champion game the Champion plays against it instead of against each classmate.
+_Avoid_: Class vote, group answer
 
 **Comeback Crew**:
 Students who missed a question the Champion got right, and play on for smaller points.

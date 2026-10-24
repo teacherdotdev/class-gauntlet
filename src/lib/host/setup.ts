@@ -21,6 +21,7 @@ const keys = {
   perilSetup: 'classgauntlet:peril-setup',
   classicRules: 'classgauntlet:classic-rules',
   classicDeck: 'classgauntlet:classic-deck',
+  bigScreen: 'classgauntlet:big-screen',
 } as const;
 
 function load<T>(key: string, fallback: T): T {
@@ -73,3 +74,11 @@ export const saveClassicRules = (rules: ClassicSettings) => save(keys.classicRul
 /** The questions (by id) Classic last played, in order. */
 export const classicDeck = (): string[] => load<{ ids: string[] }>(keys.classicDeck, { ids: [] }).ids;
 export const saveClassicDeck = (ids: string[]) => save(keys.classicDeck, { ids });
+
+export type GameModeName = 'champion' | 'peril' | 'classic';
+
+/** Whether each Game Mode was last played on the Big Screen rather than students' devices. */
+export const playsOnBigScreen = (mode: GameModeName): boolean =>
+  !!load<Partial<Record<GameModeName, boolean>>>(keys.bigScreen, {})[mode];
+export const savePlaysOnBigScreen = (mode: GameModeName, bigScreen: boolean) =>
+  save(keys.bigScreen, { ...load(keys.bigScreen, {}), [mode]: bigScreen });

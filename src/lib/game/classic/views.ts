@@ -15,6 +15,8 @@ export type ClassicView = {
   code: string;
   title: string;
   phase: ClassicPhase;
+  /** Played on the Big Screen: no devices, so no answers to count. */
+  bigScreen: boolean;
   scoring: boolean;
   roster: { id: string; nickname: string; connected: boolean }[];
   question: null | {
@@ -60,6 +62,7 @@ export function buildClassicView(session: ClassicSession, options: { now: number
     code: s.code,
     title: s.title,
     phase: s.phase,
+    bigScreen: !!s.bigScreen,
     scoring: s.settings.scoring,
     roster: s.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected })),
     question:

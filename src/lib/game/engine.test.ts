@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { createSession, Engine, nicknameProblem } from './engine';
+import { CLASS_ID, createSession, Engine, nicknameProblem } from './engine';
 import { buildView } from './views';
-import type { Question } from './types';
+import type { Question, Settings } from './types';
 
 const questions: Question[] = Array.from({ length: 5 }, (_, i) => ({
   id: `q${i}`,
@@ -189,5 +189,107 @@ describe('Class Gauntlet engine', () => {
     expect(nicknameProblem('Ana', ['ana'])).toContain('Ana 2');
     expect(nicknameProblem('stupid head', [])).not.toBeNull();
     expect(nicknameProblem('Ana', [])).toBeNull();
+  });
+});
+
+describe('Champion on the Big Screen', () => {
+  function bigScreen(settings: Partial<Settings> = {}) {
+    let now = 1_000_000;
+    const clock = { now: () => now, random: () => 0.5 };
+    const engine = new Engine(
+      createSession({ code: 'ABC234', setTitle: 'Test', questions, settings: { questionsPerGame: 3, strikes: 2, ...settings }, bigScreen: true, clock }),
+      clock,
+    );
+    const ok = (result: { ok: boolean; message?: string }) => expect(result).toEqual({ ok: true });
+    /** Plays one question: the champion looks away, the class votes, the champion answers. */
+    const play = (classMajority: number | null, oneChoice: number) => {
+      ok(engine.next());
+      expect(buildView(engine.session, { now, pauseReason: null }).question?.prompt).toBeNull();
+      ok(engine.showToClass());
+      ok(classMajority === null ? engine.lock() : engine.classAnswer(classMajority));
+      expect(engine.session.phase).toBe('PHASE_A_LOCKED');
+      expect(buildView(engine.session, { now, pauseReason: null }).question?.prompt).toBeNull();
+      ok(engine.showToOne());
+      ok(engine.answerForOne(oneChoice));
+      ok(engine.reveal());
+    };
+    return { engine, ok, play, advance: (ms: number) => (now += ms) };
+  }
+
+  test('a named champion plays the Class Majority: the pot grows more when the class was wrong', () => {
+    const { engine, ok, play } = bigScreen();
+    ok(engine.startBigScreenRound('Ana'));
+    expect(engine.session.players.map((p) => p.nickname)).toEqual(['The Class', 'Ana']);
+    play(1, 1);
+    expect(engine.session.game!.bank).toBe(100);
+    play(0, 1);
+    expect(engine.session.game!.bank).toBe(300);
+    expect(engine.session.game!.reveal!.classMajority).toBe(0);
+    play(null, 1);
+    // Every question cleared: Ana banks the pot.
+    expect(engine.session.game!.result).toMatchObject({ reason: 'deck_survived', bankedByOne: 400 });
+    expect(engine.player(CLASS_ID)!.points).toBe(0);
+    expect(engine.session.players.find((p) => p.nickname === 'Ana')!.points).toBe(400);
+  });
+
+  test('out of chances, The Class wins the pot; the next champion is named, and a name that returns keeps its points', () => {
+    const { engine, ok, play } = bigScreen();
+    ok(engine.startBigScreenRound('Ana'));
+    play(0, 1);
+    play(1, 0);
+    play(1, 2);
+    expect(engine.session.game!.result).toMatchObject({ reason: 'flameout' });
+    expect(engine.player(CLASS_ID)!.points).toBe(200);
+    ok(engine.next());
+    expect(engine.session.phase).toBe('LEADERBOARD');
+    expect(engine.session.pendingNextOneId).toBeNull();
+    ok(engine.startBigScreenRound('Ben'));
+    expect(engine.session.players).toHaveLength(3);
+    ok(engine.endGame());
+    ok(engine.startBigScreenRound('ana'));
+    expect(engine.session.players).toHaveLength(3);
+    expect(engine.startBigScreenRound('  ').ok).toBe(false);
+  });
+
+  test('the timer is only a guide, and the class only votes once it has seen the question', () => {
+    const { engine, ok, advance } = bigScreen();
+    ok(engine.startBigScreenRound('Ana'));
+    ok(engine.openQuestion());
+    expect(engine.session.game!.active!.deadline).toBeNull();
+    expect(engine.classAnswer(1).ok).toBe(false);
+    ok(engine.showToClass());
+    advance(60_000);
+    expect(engine.tick()).toBe(false);
+    expect(engine.session.phase).toBe('PHASE_A');
+  });
+
+  test('lifelines: Poll shows the Class Majority, Go with the Class locks it in, Ask Two only marks itself used', () => {
+    const { engine, ok } = bigScreen();
+    ok(engine.startBigScreenRound('Ana'));
+    const one = engine.session.game!.oneId;
+    const toChampion = (majority: number | null) => {
+      ok(engine.showToClass());
+      ok(majority === null ? engine.lock() : engine.classAnswer(majority));
+      ok(engine.showToOne());
+    };
+    ok(engine.openQuestion());
+    toChampion(2);
+    ok(engine.helpPoll(one, 0));
+    expect(engine.session.game!.active!.helpResult).toEqual({ type: 'majority', choice: 2 });
+    ok(engine.answerForOne(1));
+    ok(engine.reveal());
+    ok(engine.next());
+    toChampion(null);
+    expect(engine.helpTrust(one).ok).toBe(false);
+    ok(engine.helpAsk(one));
+    expect(engine.session.game!.active!.helpResult).toEqual({ type: 'ask', speakers: [], bonusEach: 0 });
+    expect(engine.session.game!.helpsUsed.ask).toBe(true);
+    ok(engine.answerForOne(1));
+    ok(engine.reveal());
+    ok(engine.next());
+    toChampion(0);
+    ok(engine.helpTrust(one));
+    expect(engine.session.game!.active!.oneAnswer).toBe(0);
+    expect(engine.session.phase).toBe('ONE_LOCKED');
   });
 });

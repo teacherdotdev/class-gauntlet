@@ -1,6 +1,7 @@
 <script lang="ts">
   // Classic's waiting room: where to join, who's here, and the rules behind
-  // the gear (remembered for the next game).
+  // the gear (remembered for the next game). On the Big Screen nobody joins,
+  // so it just says how a class review goes.
   import Avatar from '../components/Avatar.svelte';
   import { host } from '../host.svelte';
   import { plural } from '../words';
@@ -29,16 +30,22 @@
 </script>
 
 <div class="lobby">
-  <JoinBanner />
+  {#if !s.bigScreen}<JoinBanner />{/if}
 
   <div class="bar">
     <button class="icon-btn" onclick={openRules} aria-label="Rules" title="Rules"><Settings size={22} /></button>
-    <span class="count"><strong>{s.players.length}</strong> {s.players.length === 1 ? 'player' : 'players'}</span>
+    {#if !s.bigScreen}<span class="count"><strong>{s.players.length}</strong> {s.players.length === 1 ? 'player' : 'players'}</span>{/if}
     <span class="title">Classic · {s.title} · {plural(s.questions.length, 'question')}</span>
-    <button class="start" disabled={!s.players.length} onclick={() => host.runClassic((e) => e.start())}>Start</button>
+    <button class="start" disabled={!s.players.length && !s.bigScreen} onclick={() => host.runClassic((e) => e.start())}>Start</button>
   </div>
   {#if host.notice}<p class="notice" role="alert">{host.notice}</p>{/if}
 
+  {#if s.bigScreen}
+    <div class="big-screen">
+      <h1>Class review</h1>
+      <p>Each question goes up with a timer. The class answers on mini whiteboards or with their hands, and you show the answer when everyone’s ready.</p>
+    </div>
+  {/if}
   <ul class="players">
     {#each s.players as p (p.id)}
       <li class:away={!p.connected}>
@@ -54,14 +61,14 @@
       </li>
     {/each}
   </ul>
-  {#if !s.players.length}<p class="waiting">Waiting for players…</p>{/if}
+  {#if !s.players.length && !s.bigScreen}<p class="waiting">Waiting for players…</p>{/if}
 </div>
 
 <dialog bind:this={dialog} aria-labelledby="classic-rules-title">
   <form onsubmit={saveRules}>
     <h2 id="classic-rules-title">Rules</h2>
     <label class="field">Seconds to answer <input type="number" min="5" max="120" bind:value={timerSeconds} /></label>
-    <label class="check"><input type="checkbox" bind:checked={scoring} /> <span><strong>Keep score</strong>: points for right answers, more for quick ones</span></label>
+    {#if !s.bigScreen}<label class="check"><input type="checkbox" bind:checked={scoring} /> <span><strong>Keep score</strong>: points for right answers, more for quick ones</span></label>{/if}
     <p class="hint">Your next game starts with these too.</p>
     <div class="actions">
       <button type="button" class="btn-quiet" onclick={() => dialog.close()}>Cancel</button>
@@ -178,6 +185,24 @@
     background: none;
     color: var(--bad);
     cursor: pointer;
+  }
+  .big-screen {
+    flex: 1;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 1rem;
+    text-align: center;
+  }
+  .big-screen h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(2.6rem, 6vw, 4.4rem);
+  }
+  .big-screen p {
+    max-width: 40rem;
+    font-size: 1.3rem;
+    color: rgb(255 250 243 / 0.75);
   }
   .waiting {
     text-align: center;

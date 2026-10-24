@@ -106,3 +106,20 @@ describe('Classic', () => {
     expect(engine.session.phase).toBe('REVEAL');
   });
 });
+
+describe('Classic on the Big Screen', () => {
+  test('starts with nobody joined, and only the teacher shows the answer', () => {
+    let now = 1_000_000;
+    const clock = { now: () => now, random: () => 0.5 };
+    const engine = new ClassicEngine(createClassicSession({ code: '123456', title: 'Facts', questions, bigScreen: true, clock }), clock);
+    expect(engine.start()).toEqual({ ok: true });
+    now += 120_000;
+    expect(engine.tick()).toBe(false);
+    expect(engine.session.phase).toBe('QUESTION');
+    expect(engine.lock()).toEqual({ ok: true });
+    expect(engine.next()).toEqual({ ok: true });
+    expect(engine.lock()).toEqual({ ok: true });
+    expect(engine.next()).toEqual({ ok: true });
+    expect(engine.session.phase).toBe('REPORT');
+  });
+});

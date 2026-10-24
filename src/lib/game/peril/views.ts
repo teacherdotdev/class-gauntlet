@@ -23,6 +23,8 @@ export type PerilView = {
   code: string;
   phase: PerilPhase;
   solo: boolean;
+  /** Played on the Big Screen: no devices, the teacher taps every choice. */
+  bigScreen: boolean;
   teams: {
     id: string;
     name: string;
@@ -139,6 +141,7 @@ export function buildPerilView(
     code: s.code,
     phase: s.phase,
     solo,
+    bigScreen: !!s.bigScreen,
     teams: s.teams.map((team) => ({
       id: team.id,
       name: team.name,

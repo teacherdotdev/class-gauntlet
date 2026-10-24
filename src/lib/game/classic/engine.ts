@@ -14,6 +14,9 @@ import {
  * message a person can read.
  *
  *   LOBBY ─start→ QUESTION ─everyone in or time's up→ REVEAL ─next→ QUESTION … ─next after the last→ REPORT
+ *
+ * On the Big Screen nobody joins: the class answers on paper or by hand, and
+ * only the teacher's lock shows the answer (the timer is a guide).
  */
 
 const ok: Result = { ok: true };
@@ -25,6 +28,7 @@ export function createClassicSession(input: {
   title: string;
   questions: Question[];
   settings?: Partial<ClassicSettings>;
+  bigScreen?: boolean;
   clock?: Clock;
 }): ClassicSession {
   const clock = input.clock ?? systemClock;
@@ -41,6 +45,7 @@ export function createClassicSession(input: {
     version: 1,
     code: input.code,
     createdAt: clock.now(),
+    ...(input.bigScreen ? { bigScreen: true } : {}),
     title: input.title,
     settings,
     questions,
@@ -143,7 +148,7 @@ export class ClassicEngine {
     const s = this.session;
     if (s.phase !== 'LOBBY') return no('The game has already started.');
     if (!s.questions.length) return no('There are no questions.');
-    if (!s.players.length) return no('Wait for a student to join.');
+    if (!s.players.length && !s.bigScreen) return no('Wait for a student to join.');
     return this.open(0);
   }
 
@@ -198,7 +203,7 @@ export class ClassicEngine {
 
   tick(): boolean {
     const s = this.session;
-    if (s.phase !== 'QUESTION' || s.deadline === null || this.clock.now() < s.deadline) return false;
+    if (s.bigScreen || s.phase !== 'QUESTION' || s.deadline === null || this.clock.now() < s.deadline) return false;
     this.reveal();
     this.changed();
     return true;

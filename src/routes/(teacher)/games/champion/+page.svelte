@@ -4,20 +4,23 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { host } from '#lib/host.svelte.ts';
-  import { championDeck, championRules, saveChampionDeck } from '#lib/host/setup.ts';
+  import { championDeck, championRules, playsOnBigScreen, saveChampionDeck, savePlaysOnBigScreen } from '#lib/host/setup.ts';
   import { library } from '#lib/questions/store.svelte.ts';
   import { questionsFor, titleFor } from '#lib/setup/deck.ts';
+  import PlaysOn from '#lib/setup/PlaysOn.svelte';
   import QuestionList from '#lib/setup/QuestionList.svelte';
   import { plural } from '#lib/words.ts';
 
   const fromBank = library.get(page.url.searchParams.get('bank') ?? '');
   let ids = $state(fromBank ? fromBank.questions.map((q) => q.id) : championDeck());
   const deck = $derived(questionsFor(library.sorted, ids));
+  let bigScreen = $state(playsOnBigScreen('champion'));
 
   function open() {
     if (!deck.length) return;
     saveChampionDeck(deck.map((q) => q.id));
-    host.create({ setTitle: titleFor(library.sorted, deck), questions: $state.snapshot(deck), settings: championRules() });
+    savePlaysOnBigScreen('champion', bigScreen);
+    host.create({ setTitle: titleFor(library.sorted, deck), questions: $state.snapshot(deck), settings: championRules(), bigScreen });
     goto('/host');
   }
 </script>
@@ -27,9 +30,10 @@
 <header class="bar">
   <a class="btn-quiet" href="/games">← Games</a>
   <h1>Champion</h1>
+  <PlaysOn bind:bigScreen />
   <span class="spacer"></span>
   <span class="count">{plural(deck.length, 'question')}</span>
-  <button class="btn-primary" disabled={!deck.length} onclick={open}>Open the lobby ▸</button>
+  <button class="btn-primary" disabled={!deck.length} onclick={open}>{bigScreen ? 'Set up the Big Screen ▸' : 'Open the lobby ▸'}</button>
 </header>
 
 <QuestionList bind:ids />
@@ -38,6 +42,7 @@
   .bar {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.9rem;
     margin-bottom: 1.1rem;
   }

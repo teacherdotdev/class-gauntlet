@@ -117,6 +117,58 @@ export function scoreReveal(input: {
 }
 
 /**
+ * Champion on the Big Screen, where the Champion plays against the Class
+ * Majority instead of each classmate. A right answer grows the Prize Pot, by
+ * more when the Class Majority was wrong; a wrong one costs a chance. Out of
+ * chances, The Class wins the pot; clear every question and the Champion banks it.
+ */
+export function scoreBigScreenReveal(input: {
+  players: ScoringPlayer[];
+  classId: string;
+  /** Null when the teacher skipped the class's vote. */
+  classMajority: number | null;
+  correct: number;
+  oneId: string;
+  oneCorrect: boolean;
+  strikes: number;
+  bank: number;
+  questionNumber: number;
+  deckSize: number;
+  settings: Settings;
+}): ScoringResult {
+  const s = input.settings;
+  const next = new Map(input.players.map((p) => [p.id, { ...p }]));
+  const deltas: ScoreDelta[] = [];
+  const payouts: { playerId: string; points: number }[] = [];
+  const payout = (playerId: string, points: number, reason: string) => {
+    const player = next.get(playerId);
+    if (points === 0 || !player) return;
+    player.points += points;
+    deltas.push({ playerId, points, reason });
+    payouts.push({ playerId, points });
+  };
+
+  const classWrong = input.classMajority !== null && input.classMajority !== input.correct;
+  const bankDelta = input.oneCorrect ? (classWrong ? s.bigScreenBeatClassPot : s.bigScreenPot) : 0;
+  const bank = input.bank + bankDelta;
+  const strikes = input.oneCorrect ? input.strikes : Math.max(0, input.strikes - 1);
+  const endReason: EndReason | null =
+    strikes === 0 ? 'flameout' : input.questionNumber >= input.deckSize ? 'deck_survived' : null;
+
+  let bankedByOne = 0;
+  if (endReason === 'flameout') {
+    bankedByOne = Math.floor(bank * s.bankKeepFractionOnFlameout);
+    payout(input.oneId, bankedByOne, 'flameout_keep');
+    payout(input.classId, bank - bankedByOne, 'flameout_split');
+  } else if (endReason === 'deck_survived') {
+    bankedByOne = bank;
+    payout(input.oneId, bankedByOne, 'bank');
+  }
+
+  return { players: [...next.values()], demoted: [], deltas, payouts, bankDelta, bank, strikes, endReason, bankedByOne };
+}
+
+/**
  * "On a Roll": The One is fast when they answer within 1.25× the average time
  * of the faster half of the Mob members who got it right (clamped to 8–20s;
  * 20s when nobody in the Mob was right).
