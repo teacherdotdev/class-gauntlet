@@ -71,7 +71,8 @@ describe('Class Gauntlet engine', () => {
     expect(result.bankedByOne).toBe(30); // 20 × 1.5
     expect(engine.next().ok).toBe(true);
     expect(engine.session.phase).toBe('LEADERBOARD');
-    expect(engine.session.pendingNextOneId).toBe(ben);
+    // The spotlight picks the next champion, so nobody is lined up.
+    expect(engine.session.pendingNextOneId).toBeNull();
   });
 
   test('Flameout splits the bank among the surviving Mob', () => {
@@ -204,6 +205,7 @@ describe('Class Gauntlet engine', () => {
   test('Skipping the last question ends the round with The One banking the pot', () => {
     const { engine, ids } = setup(['Ana', 'Ben', 'Cy']);
     const [one, ben, cy] = ids;
+    engine.updateSettings({ rescueStreak: 0 });
     engine.startGame(one);
     engine.openQuestion();
     answerAll(engine, { [ben]: 1, [cy]: 0 });
@@ -245,6 +247,157 @@ describe('Class Gauntlet engine', () => {
     expect(nicknameProblem('Ana', ['ana'])).toContain('Ana 2');
     expect(nicknameProblem('stupid head', [])).not.toBeNull();
     expect(nicknameProblem('Ana', [])).toBeNull();
+  });
+});
+
+describe('Class Streak and Rescue', () => {
+  const seven = ['Ana', 'Ben', 'Cy', 'Dee', 'Eve', 'Fay', 'Gus'];
+
+  /** One question: the class answers as given, the champion answers right, and the answer is revealed. */
+  function play(engine: Engine, one: string, choices: Record<string, number>) {
+    expect(engine.next().ok).toBe(true);
+    answerAll(engine, choices);
+    if (engine.session.phase === 'PHASE_A') expect(engine.lock().ok).toBe(true);
+    expect(engine.showToOne().ok).toBe(true);
+    expect(engine.oneAnswer(one, engine.session.game!.active!.id, 1).ok).toBe(true);
+    expect(engine.reveal().ok).toBe(true);
+  }
+
+  function started(names = seven) {
+    const made = setup(names);
+    expect(engine(made).startGame(made.ids[0]).ok).toBe(true);
+    return made;
+  }
+  const engine = (made: ReturnType<typeof setup>) => made.engine;
+
+  test('three right in a row for most of the class earns a Rescue; the class votes one of the Comeback Crew back', () => {
+    const { engine, ids } = started();
+    const [one, ben, cy, dee, eve, fay, gus] = ids;
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1, [eve]: 1, [fay]: 0, [gus]: 2 });
+    expect(engine.player(fay)!.role).toBe('crowd');
+    expect(engine.session.game!.classStreak).toBe(1);
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1, [eve]: 1 });
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1, [eve]: 0 });
+    expect(engine.session.game!.reveal).toMatchObject({ classRight: true, rescueEarned: true });
+    expect(buildView(engine.session, { now: 0, pauseReason: null }).question?.reveal?.rescueEarned).toBe(true);
+
+    expect(engine.next().ok).toBe(true);
+    expect(engine.session.phase).toBe('RESCUE');
+    expect(engine.session.game!.rescue!.candidates.sort()).toEqual([eve, fay, gus].sort());
+    expect(engine.rescueVote(fay, gus).ok).toBe(false); // the Comeback Crew doesn't vote
+    expect(engine.rescueVote(ben, one).ok).toBe(false); // only the Comeback Crew can come back
+    // The Class is Ben, Cy and Dee now (Eve missed the last one).
+    expect(engine.rescueVote(ben, gus).ok).toBe(true);
+    expect(engine.rescueVote(ben, fay).ok).toBe(true); // a vote can be changed
+    expect(engine.rescueVote(cy, fay).ok).toBe(true);
+    expect(engine.next().ok).toBe(false); // still voting
+    const view = buildView(engine.session, { now: 0, pauseReason: null, viewerId: ben });
+    expect(view.self?.rescueVote).toBe(fay);
+    expect(view.rescue).toMatchObject({ voted: 2, voters: 3, settled: false, rescued: null });
+    expect(view.rescue?.candidates.find((c) => c.id === fay)?.votes).toBe(2);
+
+    // The last of The Class votes, and the vote closes itself.
+    expect(engine.rescueVote(dee, gus).ok).toBe(true);
+    expect(engine.session.game!.rescue!.rescuedId).toBe(fay);
+    expect(engine.player(fay)!.role).toBe('mob');
+    expect(engine.next().ok).toBe(true);
+    expect(engine.session.phase).toBe('PHASE_A');
+    expect(engine.session.game!.active!.eligible).toContain(fay);
+    expect(engine.session.game!.rescuesEarned).toBe(0);
+  });
+
+  test('the vote closes once all of The Class has voted, and the streak keeps counting after a Rescue', () => {
+    const { engine, ids } = started(['Ana', 'Ben', 'Cy', 'Dee', 'Eve']);
+    const [one, ben, cy, dee, eve] = ids;
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1, [eve]: 0 });
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1 });
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1 });
+    expect(engine.next().ok).toBe(true);
+    for (const voter of [ben, cy, dee]) expect(engine.rescueVote(voter, eve).ok).toBe(true);
+    expect(engine.session.game!.rescue!.rescuedId).toBe(eve);
+
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 1, [eve]: 0 });
+    expect(engine.session.game!.classStreak).toBe(4);
+  });
+
+  test('a missed question resets the streak; a Rescue earned with nobody to bring back is saved', () => {
+    const { engine, ids, advance } = started(['Ana', 'Ben', 'Cy', 'Dee']);
+    const [one, ben, cy, dee] = ids;
+    play(engine, one, { [ben]: 1, [cy]: 0, [dee]: 0 });
+    expect(engine.session.game!.classStreak).toBe(0);
+    expect(engine.player(cy)!.role).toBe('crowd');
+    // Cy and Dee are in the Comeback Crew; Ben alone is The Class now.
+    for (let i = 0; i < 3; i++) play(engine, one, { [ben]: 1 });
+    expect(engine.session.game!.rescuesEarned).toBe(1);
+    expect(engine.next().ok).toBe(true);
+    expect(engine.session.phase).toBe('RESCUE');
+    advance(16_000);
+    expect(engine.tick()).toBe(true);
+    expect([cy, dee]).toContain(engine.session.game!.rescue!.rescuedId!);
+
+    const fresh = started(['Ana', 'Ben', 'Cy']);
+    const [a, b, c] = fresh.ids;
+    for (let i = 0; i < 3; i++) play(fresh.engine, a, { [b]: 1, [c]: 1 });
+    // Nobody to bring back: the game goes on, and the Rescue waits.
+    expect(fresh.engine.next().ok).toBe(true);
+    expect(fresh.engine.session.phase).toBe('PHASE_A');
+    expect(fresh.engine.session.game!.rescuesEarned).toBe(1);
+  });
+
+  test('the teacher can pass on a Rescue, and Rescues can be turned off', () => {
+    const { engine, ids } = started(['Ana', 'Ben', 'Cy', 'Dee']);
+    const [one, ben, cy, dee] = ids;
+    play(engine, one, { [ben]: 1, [cy]: 1, [dee]: 0 });
+    play(engine, one, { [ben]: 1, [cy]: 1 });
+    play(engine, one, { [ben]: 1, [cy]: 1 });
+    expect(engine.next().ok).toBe(true);
+    expect(engine.skipRescue().ok).toBe(true);
+    expect(engine.session.phase).toBe('PHASE_A');
+    expect(engine.player(dee)!.role).toBe('crowd');
+
+    const off = setup(['Ana', 'Ben', 'Cy']);
+    expect(off.engine.updateSettings({ rescueStreak: 0 }).ok).toBe(true);
+    expect(off.engine.startGame(off.ids[0]).ok).toBe(true);
+    play(off.engine, off.ids[0], { [off.ids[1]]: 1, [off.ids[2]]: 1 });
+    expect(off.engine.session.game!.classStreak).toBe(0);
+    expect(buildView(off.engine.session, { now: 0, pauseReason: null }).game?.classStreak).toBeNull();
+  });
+});
+
+describe('Picking the champion', () => {
+  test('the spotlight passes over past champions until everyone has been one, unless the rules say otherwise', () => {
+    const { engine, ids } = setup(['Ana', 'Ben', 'Cy']);
+    const champions: string[] = [];
+    for (let round = 0; round < 3; round++) {
+      expect(engine.startGame().ok).toBe(true);
+      champions.push(engine.session.game!.oneId);
+      expect(engine.endGame().ok).toBe(true);
+      expect(engine.session.pendingNextOneId).toBeNull();
+    }
+    expect(champions.sort()).toEqual([...ids].sort());
+
+    const again = setup(['Ana', 'Ben']);
+    expect(again.engine.updateSettings({ championsOnce: false }).ok).toBe(true);
+    const picks = new Set<string>();
+    for (let round = 0; round < 12; round++) {
+      expect(again.engine.startGame().ok).toBe(true);
+      picks.add(again.engine.session.game!.oneId);
+      again.engine.endGame();
+    }
+    expect(picks.size).toBe(2);
+    expect(again.engine.player(again.ids[0])!.hasBeenOne && again.engine.player(again.ids[1])!.hasBeenOne).toBe(true);
+  });
+
+  test('when the teacher picks, a round won’t start until they do, and the next champion is suggested', () => {
+    const { engine, ids } = setup(['Ana', 'Ben', 'Cy']);
+    expect(engine.updateSettings({ championPick: 'teacher' }).ok).toBe(true);
+    expect(engine.startGame()).toEqual({ ok: false, message: 'Pick a student to be the champion.' });
+    expect(engine.chooseNextOne(ids[1]).ok).toBe(true);
+    expect(engine.startGame().ok).toBe(true);
+    expect(engine.session.game!.oneId).toBe(ids[1]);
+    engine.endGame();
+    expect(engine.session.pendingNextOneId).not.toBeNull();
+    expect(engine.session.pendingNextOneId).not.toBe(ids[1]);
   });
 });
 

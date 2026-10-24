@@ -272,9 +272,42 @@
             <p>The answer was {letter(q.reveal.correct)}.</p>
           {/if}
           {#if me.demoted}<p class="crew-note">You fall to the Comeback Crew.</p>{/if}
+          {#if q.reveal.rescueEarned && !view.game?.result}
+            <p class="reward">💥 <b>Boom! The class has earned a reward:</b> {view.game?.crowdCount ? 'a vote to bring someone back.' : 'a Rescue, saved for later.'}</p>
+          {/if}
           {#if view.game?.result}
             <p class="over">{endHeadline(view.game.result.reason, one, view.game.result.bankedByOne)}</p>
             {#if me.payout > 0}<p class="plus">+{me.payout} in the finish!</p>{/if}
+          {/if}
+        </div>
+      {:else if phase === 'RESCUE' && view.rescue}
+        {@const rescue = view.rescue}
+        <div class="moment">
+          {#if rescue.settled}
+            {#if rescue.rescued?.id === me.id}
+              <h1 class="shout">You’re back!</h1>
+              <p>The class voted you out of the Comeback Crew.</p>
+            {:else if rescue.rescued}
+              <h1>{rescue.rescued.nickname} is back in the class</h1>
+            {:else}
+              <h1>Nobody came back</h1>
+            {/if}
+          {:else if me.role === 'mob'}
+            <h1>Rescue!</h1>
+            <p>Vote one of the Comeback Crew back into the class.</p>
+            <div class="rescue-picks">
+              {#each rescue.candidates as c (c.id)}
+                <button class:picked={me.rescueVote === c.id} aria-pressed={me.rescueVote === c.id} onclick={() => student.rescueVote(c.id)}>
+                  {c.nickname}
+                </button>
+              {/each}
+            </div>
+          {:else if me.role === 'crowd'}
+            <h1>The class is voting…</h1>
+            <p>They’re bringing one of the Comeback Crew back. Fingers crossed!</p>
+          {:else}
+            <h1>The class earned a Rescue</h1>
+            <p>They’re voting someone back from the Comeback Crew.</p>
           {/if}
         </div>
       {:else if phase === 'LEADERBOARD' || phase === 'ENDED'}
@@ -569,6 +602,33 @@
     padding: 0.6rem 0.9rem;
     border-radius: 10px;
     font-weight: 700;
+  }
+  .reward {
+    padding: 0.6rem 0.9rem;
+    border-radius: 10px;
+    border: 2px solid #f0d27c;
+    background: rgb(240 210 124 / 0.2);
+  }
+  .rescue-picks {
+    display: grid;
+    gap: 0.5rem;
+    width: min(22rem, 100%);
+    margin-top: 0.4rem;
+  }
+  .rescue-picks button {
+    padding: 0.85rem 1rem;
+    border: 2px solid rgb(255 250 243 / 0.4);
+    border-radius: 12px;
+    background: rgb(0 0 0 / 0.18);
+    color: var(--paper);
+    font: inherit;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .rescue-picks button.picked {
+    border-color: #f0d27c;
+    background: rgb(240 210 124 / 0.3);
   }
   .stamp {
     display: grid;

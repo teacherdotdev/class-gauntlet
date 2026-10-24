@@ -33,7 +33,7 @@
     </button>
     {#if !s.noDevices}<span class="count"><strong>{players.length}</strong> {players.length === 1 ? 'player' : 'players'}</span>{/if}
     <span class="title">{s.setTitle}</span>
-    <button class="start" disabled={s.noDevices ? !champion.trim() : players.length < 2} onclick={start}>
+    <button class="start" disabled={s.noDevices ? !champion.trim() : players.length < 2 || (s.settings.championPick === 'teacher' && !s.pendingNextOneId)} onclick={start}>
       Start
     </button>
   </div>
@@ -65,7 +65,9 @@
           </button>
           {#if menuFor === p.id}
             <div class="menu">
-              <button onclick={() => choose(p.id)}>{s.pendingNextOneId === p.id ? 'Let the spotlight choose' : 'Make them the champion'}</button>
+              <button onclick={() => choose(p.id)}>
+                {s.pendingNextOneId !== p.id ? 'Make them the champion' : s.settings.championPick === 'spotlight' ? 'Let the spotlight choose' : 'Unpick'}
+              </button>
               <button class="danger" onclick={() => { host.kick(p.id); menuFor = ''; }}>Remove</button>
             </div>
           {/if}
@@ -73,7 +75,13 @@
       {/each}
     </ul>
     <p class="hint">
-      {players.length < 2 ? 'You need at least two players.' : s.pendingNextOneId ? '' : 'When you start, the spotlight picks the first champion. Tap a name to choose instead.'}
+      {players.length < 2
+        ? 'You need at least two players.'
+        : s.pendingNextOneId
+          ? ''
+          : s.settings.championPick === 'spotlight'
+            ? 'When you start, the spotlight picks the first champion. Tap a name to choose instead.'
+            : 'Tap a name to choose the first champion.'}
     </p>
   {/if}
 </div>

@@ -215,6 +215,11 @@ class StudentLink {
     this.#send({ type: 'help', help, ...(choice === undefined ? {} : { choice }) });
   }
 
+  /** Champion: in a Rescue, which of the Comeback Crew to bring back. */
+  rescueVote(playerId: string) {
+    this.#send({ type: 'rescue-vote', playerId });
+  }
+
   buzz() {
     this.#send({ type: 'buzz' });
   }

@@ -1,6 +1,7 @@
 import { DEFAULT_CLASSIC_SETTINGS, type ClassicSettings } from '../game/classic/types';
 import { emptyDraft, type BoardDraft } from '../game/peril/draft';
 import { DEFAULT_PERIL_SETTINGS, type PerilSettings } from '../game/peril/types';
+import type { ChampionRule } from '../game/engine';
 import { DEFAULT_SETTINGS, type Settings } from '../game/types';
 
 /**
@@ -9,7 +10,7 @@ import { DEFAULT_SETTINGS, type Settings } from '../game/types';
  * just means starting from the defaults.
  */
 
-export type ChampionRules = Pick<Settings, 'timerSeconds' | 'strikes' | 'questionsPerGame' | 'momentumEnabled' | 'shuffleQuestions'>;
+export type ChampionRules = Pick<Settings, ChampionRule>;
 export type PerilRules = Omit<PerilSettings, 'teams'>;
 export type PerilSetup = { draft: BoardDraft; solo: boolean; teamCount: number };
 
@@ -42,8 +43,11 @@ function save(key: string, value: unknown) {
 }
 
 export function championRules(): ChampionRules {
-  const { timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions } = load<Settings>(keys.championRules, DEFAULT_SETTINGS);
-  return { timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions };
+  const { timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions, rescueStreak, championPick, championsOnce } = load<Settings>(
+    keys.championRules,
+    DEFAULT_SETTINGS,
+  );
+  return { timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions, rescueStreak, championPick, championsOnce };
 }
 
 export const saveChampionRules = (rules: ChampionRules) => save(keys.championRules, { ...load(keys.championRules, {}), ...rules });

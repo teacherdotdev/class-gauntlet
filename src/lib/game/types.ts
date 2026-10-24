@@ -74,6 +74,14 @@ export type Settings = {
   /** With no student devices, what a right answer adds to the Prize Pot, and what it adds when the Class Majority was wrong. */
   noDevicesPot: number;
   noDevicesBeatClassPot: number;
+  /** Questions in a row most of The Class must get right to earn a Rescue; 0 turns Rescues off. */
+  rescueStreak: number;
+  /** How long The Class has to vote in a Rescue. */
+  rescueSeconds: number;
+  /** Who picks each Champion: the spotlight, at random, or the teacher. */
+  championPick: 'spotlight' | 'teacher';
+  /** The spotlight passes over students who have been Champion, until everyone has. */
+  championsOnce: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -98,6 +106,10 @@ export const DEFAULT_SETTINGS: Settings = {
   momentumWindowMaxMs: 20_000,
   noDevicesPot: 100,
   noDevicesBeatClassPot: 200,
+  rescueStreak: 3,
+  rescueSeconds: 15,
+  championPick: 'spotlight',
+  championsOnce: true,
 };
 
 export type Phase =
@@ -115,6 +127,8 @@ export type Phase =
   | 'ONE_LOCKED'
   /** The answer is on the board with points and role changes. */
   | 'REVEAL'
+  /** Between questions: The Class votes to bring one of the Comeback Crew back. */
+  | 'RESCUE'
   /** A game finished; standings are up and the teacher picks the next One. */
   | 'LEADERBOARD'
   | 'ENDED';
@@ -173,6 +187,21 @@ export type RevealResult = {
   momentumFilled: boolean;
   /** No student devices only. */
   classMajority?: number | null;
+  /** Whether most of The Class got it right, and whether that earned a Rescue. */
+  classRight?: boolean;
+  rescueEarned?: boolean;
+};
+
+/** A Rescue vote: each of The Class picks one of the Comeback Crew to bring back. */
+export type Rescue = {
+  /** The Comeback Crew when the vote opened. */
+  candidates: string[];
+  /** Voter id → candidate id. */
+  votes: Record<string, string>;
+  /** When voting closes; null once it has. */
+  deadline: number | null;
+  /** Who came back, once the vote is settled. */
+  rescuedId: string | null;
 };
 
 export type GameResult = {
@@ -192,6 +221,10 @@ export type Game = {
   bank: number;
   helpsUsed: Record<Help, boolean>;
   momentum: { progress: number; awardedOnce: boolean };
+  /** Questions in a row most of The Class got right, and Rescues earned but not yet used. Absent in older saves. */
+  classStreak?: number;
+  rescuesEarned?: number;
+  rescue?: Rescue | null;
   active: Attempt | null;
   reveal: RevealResult | null;
   result: GameResult | null;
