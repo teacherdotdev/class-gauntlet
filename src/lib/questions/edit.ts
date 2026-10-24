@@ -1,5 +1,6 @@
 import type { Question } from '../game/types';
-import { hasContent, isPlain, plainOf, type RichText } from '../rich/text';
+import { fromPlain, hasContent, hasPictureNote, isPlain, plainOf, type RichText } from '../rich/text';
+import { mathFromText } from '../rich/text-math';
 
 const filled = (plain: string, rich: RichText | undefined) => (rich ? hasContent(rich) : !!plain.trim());
 
@@ -44,4 +45,22 @@ export function cleanQuestion(q: Question): Question {
       ? { rich: { prompt: rich.prompt, choices: rich.choices, ...(explanation ? { explanation: rich.explanation } : {}) } }
       : {}),
   };
+}
+
+/** Whether a question still has a Picture Note where a Picture should go. */
+export function needsPicture(q: Question): boolean {
+  const fields = q.rich ? [q.rich.prompt, ...q.rich.choices, q.rich.explanation] : [q.prompt, ...q.choices, q.explanation];
+  return fields.some((field) => hasPictureNote(field));
+}
+
+/** The question with math written as `$…$` text turned into math, or null when it has none. */
+export function withTextMathAsMath(q: Question): Question | null {
+  const rich = q.rich ?? { prompt: fromPlain(q.prompt), choices: q.choices.map(fromPlain), ...(q.explanation ? { explanation: fromPlain(q.explanation) } : {}) };
+  const next = {
+    prompt: mathFromText(rich.prompt),
+    choices: rich.choices.map(mathFromText),
+    ...(rich.explanation ? { explanation: mathFromText(rich.explanation) } : {}),
+  };
+  if (JSON.stringify(next) === JSON.stringify(rich)) return null;
+  return cleanQuestion({ ...q, rich: next });
 }

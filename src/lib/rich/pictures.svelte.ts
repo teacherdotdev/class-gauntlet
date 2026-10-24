@@ -76,7 +76,17 @@ async function shrink(blob: Blob): Promise<Blob> {
   return jpeg && jpeg.size < blob.size ? jpeg : blob;
 }
 
-/** Keeps a picture the teacher added; resolves to the hash it's kept under. */
+/** GIFs can't be shrunk without losing their movement, so one the teacher adds has a limit instead. */
+const MAX_GIF_BYTES = 5_000_000;
+
+/** Keeps a picture the teacher adds in the editor; resolves to the hash it's kept under. */
+export function addPicture(blob: Blob): Promise<string> {
+  if (blob.type === 'image/gif' && blob.size > MAX_GIF_BYTES)
+    throw new Error('That GIF is over 5 MB, too big to send to every phone. Try a shorter or smaller clip.');
+  return savePicture(blob);
+}
+
+/** Keeps a picture; resolves to the hash it's kept under. */
 export async function savePicture(blob: Blob): Promise<string> {
   if (!blob.type.startsWith('image/')) throw new Error('That file isn’t a picture.');
   const small = await shrink(blob);

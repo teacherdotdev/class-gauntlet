@@ -126,6 +126,20 @@
   .rich :global(a) {
     color: inherit;
   }
+  /* Raised and lowered clearly, without opening up the line: an exponent has to read as one. */
+  .rich :global(sup),
+  .rich :global(sub) {
+    position: relative;
+    font-size: 0.68em;
+    line-height: 0;
+    vertical-align: baseline;
+  }
+  .rich :global(sup) {
+    top: -0.55em;
+  }
+  .rich :global(sub) {
+    bottom: -0.3em;
+  }
   img,
   .loading {
     display: block;
