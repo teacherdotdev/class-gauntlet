@@ -184,6 +184,62 @@ describe('Class Gauntlet engine', () => {
     expect(engine.session.paused).toBe(false);
   });
 
+  test('Skip discards the question: nobody is knocked out or scored, and the next question opens', () => {
+    const { engine, ids } = setup();
+    const [one, ben, cy, dee] = ids;
+    engine.startGame(one);
+    engine.openQuestion();
+    answerAll(engine, { [ben]: 1 });
+    expect(engine.skip().ok).toBe(true);
+    expect(engine.session.phase).toBe('PHASE_A');
+    expect(engine.session.game!.active!.index).toBe(2);
+    expect(engine.session.game!.offset).toBe(1);
+    expect(engine.session.game!.active!.answers).toEqual([]);
+    expect(engine.showToOne().ok).toBe(false);
+    for (const id of [ben, cy, dee]) expect(engine.player(id)).toMatchObject({ role: 'mob', points: 0, streak: 0 });
+    expect(engine.player(one)!.points).toBe(0);
+    expect(engine.session.game).toMatchObject({ bank: 0, strikes: 2, result: null });
+  });
+
+  test('Skipping the last question ends the round with The One banking the pot', () => {
+    const { engine, ids } = setup(['Ana', 'Ben', 'Cy']);
+    const [one, ben, cy] = ids;
+    engine.startGame(one);
+    engine.openQuestion();
+    answerAll(engine, { [ben]: 1, [cy]: 0 });
+    engine.showToOne();
+    engine.oneAnswer(one, engine.session.game!.active!.id, 1);
+    engine.reveal();
+    while (engine.session.game!.offset < engine.session.game!.deck.length - 1) {
+      engine.next();
+      answerAll(engine, { [ben]: 1, [cy]: 1 });
+      engine.showToOne();
+      engine.oneAnswer(one, engine.session.game!.active!.id, 1);
+      engine.reveal();
+    }
+    const before = { one: engine.player(one)!.points, ben: engine.player(ben)!.points, cy: engine.player(cy)!.points };
+    const bank = engine.session.game!.bank;
+    expect(bank).toBeGreaterThan(0);
+    engine.next();
+    expect(engine.skip().ok).toBe(true);
+    expect(engine.session.phase).toBe('LEADERBOARD');
+    expect(engine.session.game!.result).toMatchObject({ reason: 'deck_survived', bank, bankedByOne: bank });
+    expect(engine.player(one)!.points).toBe(before.one + bank);
+    expect(engine.player(ben)!.points).toBe(before.ben + 15); // surviving Mob bonus
+    expect(engine.player(cy)!.points).toBe(before.cy);
+    expect(engine.session.history.at(-1)).toMatchObject({ reason: 'deck_survived', bankedByOne: bank });
+  });
+
+  test('Skip only works while the class is answering', () => {
+    const { engine, ids } = setup();
+    const [one, ben, cy, dee] = ids;
+    engine.startGame(one);
+    expect(engine.skip().ok).toBe(false);
+    engine.openQuestion();
+    answerAll(engine, { [ben]: 1, [cy]: 1, [dee]: 1 });
+    expect(engine.skip().ok).toBe(false);
+  });
+
   test('Nickname rules', () => {
     expect(nicknameProblem('', [])).not.toBeNull();
     expect(nicknameProblem('Ana', ['ana'])).toContain('Ana 2');
@@ -249,6 +305,30 @@ describe('Champion with no student devices', () => {
     ok(engine.startNamedRound('ana'));
     expect(engine.session.players).toHaveLength(3);
     expect(engine.startNamedRound('  ').ok).toBe(false);
+  });
+
+  test('Skip discards the question: no chance lost, no pot, and the champion never sees it', () => {
+    const { engine, ok } = noDevices();
+    ok(engine.startNamedRound('Ana'));
+    ok(engine.openQuestion());
+    ok(engine.showToClass());
+    ok(engine.skip());
+    expect(engine.session.phase).toBe('PHASE_A');
+    expect(engine.session.game).toMatchObject({ offset: 1, bank: 0, strikes: 2 });
+    expect(engine.session.game!.active!.classShown).toBe(false);
+    ok(engine.showToClass());
+    ok(engine.classAnswer(0));
+    ok(engine.showToOne());
+    ok(engine.answerForOne(1));
+    ok(engine.reveal());
+    expect(engine.session.game!.bank).toBe(200);
+    ok(engine.next());
+    ok(engine.skip());
+    // The last question skipped: Ana banks the pot and The Class gets nothing.
+    expect(engine.session.phase).toBe('LEADERBOARD');
+    expect(engine.session.game!.result).toMatchObject({ reason: 'deck_survived', bankedByOne: 200 });
+    expect(engine.player(CLASS_ID)!.points).toBe(0);
+    expect(engine.session.players.find((p) => p.nickname === 'Ana')!.points).toBe(200);
   });
 
   test('the timer is only a guide, and the class only votes once it has seen the question', () => {

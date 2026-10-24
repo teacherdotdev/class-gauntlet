@@ -1,4 +1,4 @@
-import { momentumWindowMs, scoreNoDevicesReveal, scoreReveal } from './scoring';
+import { momentumWindowMs, scoreNoDevicesReveal, scoreReveal, scoreSkippedLast } from './scoring';
 import {
   DEFAULT_SETTINGS,
   type Attempt,
@@ -438,6 +438,35 @@ export class Engine {
     s.paused = false;
     this.pauseReason = null;
     s.phase = 'PHASE_A_LOCKED';
+    return this.changed();
+  }
+
+  /**
+   * Discards the open question unscored: nobody's answer counts, The One never
+   * sees it, and the round goes on one question shorter. Skipping the last
+   * question ends the round with The One banking the pot.
+   */
+  skip(): Result {
+    const s = this.session;
+    const game = s.game;
+    const active = game?.active;
+    if (!game || !active || s.phase !== 'PHASE_A') return no('There is no question to skip right now.');
+    game.offset = active.index;
+    game.active = null;
+    game.reveal = null;
+    s.paused = false;
+    this.pauseReason = null;
+    if (game.offset < game.deck.length) {
+      s.phase = 'BETWEEN';
+      return this.openQuestion();
+    }
+    const scored = scoreSkippedLast({ players: s.players, oneId: game.oneId, bank: game.bank, noDevices: !!s.noDevices, settings: s.settings });
+    const byId = new Map(scored.players.map((p) => [p.id, p]));
+    for (const p of s.players) p.points = byId.get(p.id)?.points ?? p.points;
+    game.result = { reason: 'deck_survived', payouts: scored.payouts, bank: game.bank, bankedByOne: scored.bankedByOne };
+    s.history.push({ ordinal: game.ordinal, oneId: game.oneId, reason: 'deck_survived', bankedByOne: scored.bankedByOne });
+    s.phase = 'LEADERBOARD';
+    s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
     return this.changed();
   }
 

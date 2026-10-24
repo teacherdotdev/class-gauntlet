@@ -169,6 +169,31 @@ export function scoreNoDevicesReveal(input: {
 }
 
 /**
+ * The teacher skipped the last question, so nobody's answer counts and the
+ * Champion has survived the deck: they bank the pot, and with student devices
+ * each surviving Mob member earns the deck bonus.
+ */
+export function scoreSkippedLast(input: {
+  players: ScoringPlayer[];
+  oneId: string;
+  bank: number;
+  noDevices: boolean;
+  settings: Settings;
+}): Pick<ScoringResult, 'players' | 'payouts' | 'bankedByOne'> {
+  const next = new Map(input.players.map((p) => [p.id, { ...p }]));
+  const payouts: { playerId: string; points: number }[] = [];
+  const payout = (playerId: string, points: number) => {
+    const player = next.get(playerId);
+    if (points === 0 || !player) return;
+    player.points += points;
+    payouts.push({ playerId, points });
+  };
+  payout(input.oneId, input.bank);
+  if (!input.noDevices) for (const p of input.players) if (p.role === 'mob') payout(p.id, input.settings.deckSurvivedMobBonus);
+  return { players: [...next.values()], payouts, bankedByOne: input.bank };
+}
+
+/**
  * "On a Roll": The One is fast when they answer within 1.25× the average time
  * of the faster half of the Mob members who got it right (clamped to 8–20s;
  * 20s when nobody in the Mob was right).
