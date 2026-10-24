@@ -288,6 +288,7 @@ class HostRoom {
         else return;
       } else if (message.type === 'answer') result = engine.answer(playerId, message.attemptId, message.choice);
       else if (message.type === 'one-answer') result = engine.oneAnswer(playerId, message.attemptId, message.choice);
+      else if (message.type === 'rescue-vote') result = engine.rescueVote(playerId, String(message.playerId));
       else if (message.type === 'help')
         result =
           message.help === 'poll'

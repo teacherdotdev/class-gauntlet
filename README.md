@@ -14,7 +14,7 @@ A serverless rebuild of an [open-source EdTech-a-thon project](https://github.co
    - **Poll the Class**: see how many in the class chose an answer.
    - **Ask Two**: one classmate who was right and one who wasn't explain out loud (+5 each).
    - **Go with the Class**: lock in the most popular answer.
-6. **The reveal:** if the challenger is right, classmates who missed fall to the **Comeback Crew** (they keep answering and scoring) and the **Prize Pot** grows by 20 each. If the challenger is wrong, they lose a chance.
+6. **The reveal:** if the challenger is right, classmates who missed fall to the **Comeback Crew** (they keep answering and scoring) and the **Prize Pot** grows by 20 each. If the challenger is wrong, they lose a chance. When most of the class gets three in a row right, the class earns a **Rescue**: they vote one of the Comeback Crew back into the class.
 7. The round ends when the challenger runs out of chances (the class splits the pot), clears every question (the challenger banks the pot and classmates still standing get a bonus), or outlasts the whole class (jackpot: pot × 1.5). Then a new challenger steps up.
 
 Inside a question the game moves itself along (timer, hand-off to the challenger, drumroll, reveal); the teacher taps **Next** between questions. The scoring rules are ported unchanged from the original (`src/lib/game/scoring.ts`), including the optional **On a Roll** rule: quick answers without a lifeline win the challenger a chance back once per round.

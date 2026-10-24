@@ -9,6 +9,8 @@ export type StudentMessage =
   | { type: 'answer'; attemptId: string; choice: number }
   | { type: 'one-answer'; attemptId: string; choice: number }
   | { type: 'help'; help: Help; choice?: number }
+  /** Champion: a vote in a Rescue. */
+  | { type: 'rescue-vote'; playerId: string }
   /** Peril! */
   | { type: 'buzz' }
   | { type: 'vote'; choice: number }

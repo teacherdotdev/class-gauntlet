@@ -22,6 +22,7 @@ export const phaseName: Record<Phase, string> = {
   PHASE_B: 'Spotlight Round',
   ONE_LOCKED: 'Final answer',
   REVEAL: 'The Reveal',
+  RESCUE: 'Rescue',
   LEADERBOARD: 'Leaderboard',
   ENDED: 'Final standings',
 };

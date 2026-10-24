@@ -9,17 +9,36 @@
   let questionsPerGame = $state(12);
   let momentumEnabled = $state(false);
   let shuffleQuestions = $state(false);
+  let rescues = $state(true);
+  let rescueStreak = $state(3);
+  let championPick = $state<'spotlight' | 'teacher'>('spotlight');
+  let championsOnce = $state(true);
+  const noDevices = $derived(!!host.session?.noDevices);
 
   export function open() {
     const s = host.session?.settings;
-    if (s) ({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions } = s);
+    if (s) {
+      ({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions, championPick, championsOnce } = s);
+      rescues = s.rescueStreak > 0;
+      rescueStreak = s.rescueStreak > 0 ? s.rescueStreak : 3;
+    }
     dialog.showModal();
   }
 
   function save(event: SubmitEvent) {
     event.preventDefault();
-    if (host.run((e) => e.updateSettings({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions }))) {
-      saveChampionRules({ timerSeconds, strikes, questionsPerGame, momentumEnabled, shuffleQuestions });
+    const rules = {
+      timerSeconds,
+      strikes,
+      questionsPerGame,
+      momentumEnabled,
+      shuffleQuestions,
+      rescueStreak: rescues ? rescueStreak : 0,
+      championPick,
+      championsOnce,
+    };
+    if (host.run((e) => e.updateSettings(rules))) {
+      saveChampionRules(rules);
       dialog.close();
     }
   }
@@ -44,6 +63,25 @@
       <input type="checkbox" bind:checked={momentumEnabled} />
       <span><strong>On a Roll</strong>: quick answers without a lifeline win the champion a chance back (once a round)</span>
     </label>
+    {#if !noDevices}
+      <label class="check">
+        <input type="checkbox" bind:checked={rescues} />
+        <span><strong>Rescue</strong>: when most of the class gets {rescueStreak} in a row right, they vote someone back from the Comeback Crew</span>
+      </label>
+      {#if rescues}
+        <label class="field">Right in a row for a Rescue
+          <input type="number" min="2" max="10" bind:value={rescueStreak} />
+        </label>
+      {/if}
+      <fieldset class="field">
+        <legend>Who picks each champion</legend>
+        <label class="check"><input type="radio" name="pick" value="spotlight" bind:group={championPick} /> The spotlight, at random</label>
+        <label class="check"><input type="radio" name="pick" value="teacher" bind:group={championPick} /> I do</label>
+      </fieldset>
+      {#if championPick === 'spotlight'}
+        <label class="check"><input type="checkbox" bind:checked={championsOnce} /> Skip students who’ve been champion, until everyone has</label>
+      {/if}
+    {/if}
     {#if host.notice}<p class="problem">{host.notice}</p>{/if}
     <div class="actions">
       <button type="button" class="btn-ghost" onclick={() => dialog.close()}>Cancel</button>
@@ -70,6 +108,16 @@
   }
   .check input {
     margin-top: 0.25rem;
+  }
+  fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+  legend {
+    margin-bottom: 0.35rem;
   }
   .actions {
     display: flex;

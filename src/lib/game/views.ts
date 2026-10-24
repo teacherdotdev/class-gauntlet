@@ -43,7 +43,20 @@ export type View = {
     questionIndex: number;
     helpsAvailable: Record<Help, boolean>;
     momentum: null | { progress: number; threshold: number; awardedOnce: boolean };
+    /** The Class Streak toward a Rescue, and Rescues earned and waiting for someone to bring back; null when Rescues are off. */
+    classStreak: null | { count: number; length: number; saved: number };
     result: GameResult | null;
+  };
+  /** A Rescue vote, while it's on. */
+  rescue: null | {
+    candidates: { id: string; nickname: string; votes: number }[];
+    voted: number;
+    voters: number;
+    /** Ms left to vote, measured when this view was made; null once voting has closed. */
+    remainingMs: number | null;
+    /** Who came back, once the vote is settled; null if nobody could. */
+    rescued: { id: string; nickname: string } | null;
+    settled: boolean;
   };
   question: null | {
     attemptId: string;
@@ -76,6 +89,9 @@ export type View = {
       momentumFilled: boolean;
       /** No student devices only: the answer most of the class chose; null when it was skipped. */
       classMajority: number | null;
+      /** Whether most of The Class got it right, and whether that earned a Rescue; null when Rescues are off. */
+      classRight: boolean | null;
+      rescueEarned: boolean;
     };
   };
   /** Only in a student's view. */
@@ -93,6 +109,8 @@ export type View = {
     delta: number;
     demoted: boolean;
     payout: number;
+    /** In a Rescue: who this student voted to bring back. */
+    rescueVote: string | null;
   };
   history: { ordinal: number; oneNickname: string; reason: EndReason; bankedByOne: number }[];
 };
@@ -158,9 +176,28 @@ export function buildView(
           momentum: s.settings.momentumEnabled
             ? { progress: game.momentum.progress, threshold: s.settings.momentumThreshold, awardedOnce: game.momentum.awardedOnce }
             : null,
+          classStreak:
+            s.noDevices || s.settings.rescueStreak <= 0
+              ? null
+              : { count: game.classStreak ?? 0, length: s.settings.rescueStreak, saved: game.rescuesEarned ?? 0 },
           result: s.phase === 'REVEAL' || s.phase === 'LEADERBOARD' ? game.result : null,
         }
       : null,
+    rescue:
+      s.phase === 'RESCUE' && game?.rescue
+        ? {
+            candidates: game.rescue.candidates.map((id) => ({
+              id,
+              nickname: name(id),
+              votes: Object.values(game.rescue!.votes).filter((v) => v === id).length,
+            })),
+            voted: Object.keys(game.rescue.votes).length,
+            voters: s.players.filter((p) => p.role === 'mob' && p.connected).length,
+            remainingMs: game.rescue.deadline === null ? null : Math.max(0, game.rescue.deadline - options.now),
+            rescued: game.rescue.rescuedId ? { id: game.rescue.rescuedId, nickname: name(game.rescue.rescuedId) } : null,
+            settled: game.rescue.deadline === null,
+          }
+        : null,
     question:
       showQuestion && active
         ? {
@@ -196,6 +233,8 @@ export function buildView(
                   momentumCredited: revealed.momentumCredited,
                   momentumFilled: revealed.momentumFilled,
                   classMajority: revealed.classMajority ?? null,
+                  classRight: revealed.classRight ?? null,
+                  rescueEarned: !!revealed.rescueEarned,
                 }
               : null,
           }
@@ -221,6 +260,7 @@ export function buildView(
       delta,
       demoted: !!revealed?.demoted.includes(viewer.id),
       payout,
+      rescueVote: (s.phase === 'RESCUE' && game?.rescue?.votes[viewer.id]) || null,
     };
   }
   return view;

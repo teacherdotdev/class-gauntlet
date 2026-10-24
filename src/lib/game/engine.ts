@@ -110,6 +110,17 @@ export function createSession(input: {
 
 export type PauseReason = 'teacher' | 'one_disconnected';
 
+/** The rules a teacher sets while hosting Champion, and this browser remembers. */
+export type ChampionRule =
+  | 'timerSeconds'
+  | 'strikes'
+  | 'questionsPerGame'
+  | 'momentumEnabled'
+  | 'shuffleQuestions'
+  | 'rescueStreak'
+  | 'championPick'
+  | 'championsOnce';
+
 export class Engine {
   session: Session;
   readonly clock: Clock;
@@ -219,7 +230,7 @@ export class Engine {
   // ── Settings ───────────────────────────────────────────────────────────
 
   updateSettings(
-    patch: Partial<Pick<Settings, 'timerSeconds' | 'strikes' | 'questionsPerGame' | 'momentumEnabled' | 'shuffleQuestions'>>,
+    patch: Partial<Pick<Settings, ChampionRule>>,
   ): Result {
     const next = { ...this.session.settings, ...patch };
     if (!Number.isInteger(next.timerSeconds) || next.timerSeconds < 5 || next.timerSeconds > 120)
@@ -228,6 +239,10 @@ export class Engine {
       return no('Strikes must be 1 to 5.');
     if (!Number.isInteger(next.questionsPerGame) || next.questionsPerGame < 1 || next.questionsPerGame > 50)
       return no('Questions per game must be 1 to 50.');
+    if (!Number.isInteger(next.rescueStreak) || next.rescueStreak < 0 || next.rescueStreak > 10)
+      return no('A Rescue takes 2 to 10 right in a row, or 0 for none.');
+    if (next.rescueStreak === 1) return no('A Rescue takes at least 2 right in a row.');
+    if (next.championPick !== 'spotlight' && next.championPick !== 'teacher') return no('Choose who picks the champion.');
     const s = this.session;
     if (next.shuffleQuestions !== s.settings.shuffleQuestions && s.deckPos === 0) {
       // Nothing has been played yet, so the whole deck can be reordered.
@@ -253,11 +268,20 @@ export class Engine {
     )[0];
   }
 
-  /** For the first round, the spotlight picks someone at random. */
+  /** The spotlight's pick: anyone here at random, passing over past Champions (until everyone has been one) when the rules say so. */
   randomOne(): Player | undefined {
-    const pool = this.session.players.filter((p) => p.connected && !p.hasBeenOne);
-    const list = pool.length > 0 ? pool : this.session.players;
+    const s = this.session;
+    const here = s.players.filter((p) => p.connected);
+    const fresh = s.settings.championsOnce ? here.filter((p) => !p.hasBeenOne) : here;
+    const list = fresh.length > 0 ? fresh : here.length > 0 ? here : s.players;
     return list[Math.floor(this.clock.random() * list.length)];
+  }
+
+  /** Who is lined up for the next round once one ends: nobody when the spotlight picks; a suggestion when the teacher does. */
+  private nextOneByDefault(): string | null {
+    const s = this.session;
+    if (s.noDevices || s.settings.championPick === 'spotlight') return null;
+    return this.suggestedOne()?.id ?? null;
   }
 
   chooseNextOne(playerId: string | null): Result {
@@ -274,10 +298,10 @@ export class Engine {
       ? this.player(oneId)
       : s.pendingNextOneId
         ? this.player(s.pendingNextOneId)
-        : s.phase === 'LOBBY'
+        : s.settings.championPick === 'spotlight'
           ? this.randomOne()
-          : this.suggestedOne();
-    if (!one) return no('Pick a student to be The One.');
+          : undefined;
+    if (!one) return no('Pick a student to be the champion.');
     if (s.players.length < 2) return no('You need at least two students to play.');
     return this.beginGame(one);
   }
@@ -341,6 +365,9 @@ export class Engine {
       bank: 0,
       helpsUsed: { poll: false, ask: false, trust: false },
       momentum: { progress: 0, awardedOnce: false },
+      classStreak: 0,
+      rescuesEarned: 0,
+      rescue: null,
       active: null,
       reveal: null,
       result: null,
@@ -356,7 +383,7 @@ export class Engine {
   openQuestion(): Result {
     const s = this.session;
     const game = s.game;
-    if (!game || (s.phase !== 'BETWEEN' && s.phase !== 'REVEAL')) return no('There is no question to open right now.');
+    if (!game || (s.phase !== 'BETWEEN' && s.phase !== 'REVEAL' && s.phase !== 'RESCUE')) return no('There is no question to open right now.');
     if (game.result) return no('This game is over.');
     const position = game.deck[game.offset];
     const question = position === undefined ? undefined : s.questions[position];
@@ -466,7 +493,7 @@ export class Engine {
     game.result = { reason: 'deck_survived', payouts: scored.payouts, bank: game.bank, bankedByOne: scored.bankedByOne };
     s.history.push({ ordinal: game.ordinal, oneId: game.oneId, reason: 'deck_survived', bankedByOne: scored.bankedByOne });
     s.phase = 'LEADERBOARD';
-    s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
+    s.pendingNextOneId = this.nextOneByDefault();
     return this.changed();
   }
 
@@ -474,6 +501,11 @@ export class Engine {
   tick(): boolean {
     const s = this.session;
     if (s.noDevices) return false;
+    const rescue = s.game?.rescue;
+    if (s.phase === 'RESCUE' && rescue?.deadline != null && this.clock.now() >= rescue.deadline) {
+      this.closeRescue();
+      return true;
+    }
     const active = s.game?.active;
     if (s.phase === 'PHASE_A' && !s.paused && active?.deadline != null && this.clock.now() >= active.deadline) {
       this.lock();
@@ -660,6 +692,20 @@ export class Engine {
       }
     }
 
+    // The Class Streak: questions in a row most of The Class (as it stood) got right. Every few earn a Rescue.
+    let classRight: boolean | undefined;
+    let rescueEarned = false;
+    if (!s.noDevices && s.settings.rescueStreak > 0) {
+      const theClass = active.eligible.filter((id) => this.player(id)?.role === 'mob');
+      const right = active.answers.filter((a) => a.choice === correct && theClass.includes(a.playerId)).length;
+      classRight = theClass.length > 0 && right * 2 > theClass.length;
+      game.classStreak = classRight ? (game.classStreak ?? 0) + 1 : 0;
+      if (classRight && game.classStreak % s.settings.rescueStreak === 0) {
+        game.rescuesEarned = (game.rescuesEarned ?? 0) + 1;
+        rescueEarned = true;
+      }
+    }
+
     const byId = new Map(scored.players.map((p) => [p.id, p]));
     for (const p of s.players) {
       const next = byId.get(p.id);
@@ -682,6 +728,7 @@ export class Engine {
       momentumCredited,
       momentumFilled,
       ...(s.noDevices ? { classMajority: active.classMajority ?? null } : {}),
+      ...(classRight === undefined ? {} : { classRight, rescueEarned }),
     };
     if (scored.endReason) {
       game.result = { reason: scored.endReason, payouts: scored.payouts, bank: scored.bank, bankedByOne: scored.bankedByOne };
@@ -691,16 +738,71 @@ export class Engine {
     return this.changed();
   }
 
-  /** From the reveal: next question, or the leaderboard if the game is over. */
+  /** From the reveal: a Rescue if The Class has one to spend, the next question, or the leaderboard if the game is over. */
   next(): Result {
     const s = this.session;
     if (s.phase === 'BETWEEN') return this.openQuestion();
+    if (s.phase === 'RESCUE') {
+      if (s.game?.rescue?.rescuedId === null) return no('The Class is still voting.');
+      if (s.game) s.game.rescue = null;
+      return this.openQuestion();
+    }
     if (s.phase !== 'REVEAL' || !s.game) return no('Reveal the answer first.');
     if (s.game.result) {
       s.phase = 'LEADERBOARD';
-      s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
+      s.pendingNextOneId = this.nextOneByDefault();
       return this.changed();
     }
+    const crew = s.players.filter((p) => p.role === 'crowd').map((p) => p.id);
+    // A Rescue waits for someone to bring back.
+    if ((s.game.rescuesEarned ?? 0) > 0 && crew.length > 0) {
+      s.game.rescuesEarned!--;
+      s.game.rescue = { candidates: crew, votes: {}, deadline: this.clock.now() + s.settings.rescueSeconds * 1000, rescuedId: null };
+      s.phase = 'RESCUE';
+      return this.changed();
+    }
+    return this.openQuestion();
+  }
+
+  /** A vote in a Rescue, from one of The Class for one of the Comeback Crew; it can be changed until voting closes. */
+  rescueVote(playerId: string, candidateId: string): Result {
+    const s = this.session;
+    const rescue = s.game?.rescue;
+    if (s.phase !== 'RESCUE' || !rescue || rescue.deadline === null) return no('There’s no Rescue vote open.');
+    if (this.player(playerId)?.role !== 'mob') return no('Only The Class votes in a Rescue.');
+    if (!rescue.candidates.includes(candidateId)) return no('Vote for one of the Comeback Crew.');
+    rescue.votes[playerId] = candidateId;
+    const voters = s.players.filter((p) => p.role === 'mob' && p.connected);
+    if (voters.every((p) => rescue.votes[p.id])) return this.closeRescue();
+    return this.changed();
+  }
+
+  /** Closes a Rescue vote: the most votes comes back to The Class, a tie (or no votes) settled at random. */
+  closeRescue(): Result {
+    const s = this.session;
+    const rescue = s.game?.rescue;
+    if (s.phase !== 'RESCUE' || !rescue || rescue.deadline === null) return no('There’s no Rescue vote open.');
+    const still = rescue.candidates.filter((id) => this.player(id)?.role === 'crowd');
+    rescue.deadline = null;
+    if (!still.length) {
+      rescue.rescuedId = '';
+      return this.changed();
+    }
+    const tally = new Map(still.map((id) => [id, 0]));
+    for (const id of Object.values(rescue.votes)) if (tally.has(id)) tally.set(id, tally.get(id)! + 1);
+    const most = Math.max(...tally.values());
+    const tied = still.filter((id) => tally.get(id) === most);
+    const rescued = this.player(tied[Math.floor(this.clock.random() * tied.length)])!;
+    rescued.role = 'mob';
+    rescue.rescuedId = rescued.id;
+    return this.changed();
+  }
+
+  /** The teacher passes on a Rescue: nobody comes back, and the game goes on. */
+  skipRescue(): Result {
+    const s = this.session;
+    if (s.phase !== 'RESCUE' || !s.game) return no('There’s no Rescue vote open.');
+    s.game.rescue = null;
     return this.openQuestion();
   }
 
@@ -745,10 +847,11 @@ export class Engine {
     if (!s.game || !this.gameLive) return no('No game is running.');
     s.game.active = null;
     s.game.reveal = null;
+    s.game.rescue = null;
     s.paused = false;
     this.pauseReason = null;
     s.phase = 'LEADERBOARD';
-    s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
+    s.pendingNextOneId = this.nextOneByDefault();
     return this.changed();
   }
 

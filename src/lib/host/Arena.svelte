@@ -30,6 +30,8 @@
   const one = $derived(game?.one.nickname ?? 'The champion');
   const oneId = $derived(game?.one.id ?? '');
   const deadline = $derived(q?.remainingMs != null ? Date.now() + q.remainingMs : null);
+  const rescueDeadline = $derived(view.rescue?.remainingMs != null ? Date.now() + view.rescue.remainingMs : null);
+  const spotlightPicks = $derived(s.settings.championPick === 'spotlight');
   const name = (id: string) => view.roster.find((p) => p.id === id)?.nickname ?? 'Someone';
   const noDevices = $derived(view.noDevices);
   const classPoints = $derived(view.roster.find((p) => p.id === CLASS_ID)?.points ?? 0);
@@ -91,6 +93,8 @@
     if (phase === 'PHASE_A_LOCKED' && noDevices) return { label: `Show ${one} the question`, run: () => host.run((e) => e.showToOne()) };
     if (phase === 'REVEAL')
       return { label: game?.result ? 'Scoreboard' : 'Next question', run: () => host.run((e) => e.next()) };
+    if (phase === 'RESCUE' && view.rescue?.settled) return { label: 'Next question', run: () => host.run((e) => e.next()) };
+    if (phase === 'RESCUE') return { label: 'Close the vote', run: () => host.run((e) => e.closeRescue()) };
     if (phase === 'LEADERBOARD' && noDevices) return { label: 'Next round', run: () => host.run((e) => e.startNamedRound(nextName)) };
     if (phase === 'LEADERBOARD') return { label: 'Next round', run: () => host.run((e) => e.startGame()) };
     return null;
@@ -234,6 +238,7 @@
           <span class="label">Next champion</span>
           {#if view.pendingNextOne}<Avatar name={view.pendingNextOne.nickname} size={40} />{/if}
           <select bind:value={nextOne} onchange={() => host.run((e) => e.chooseNextOne(nextOne || null))} aria-label="Next champion">
+            {#if spotlightPicks}<option value="">The spotlight chooses</option>{:else}<option value="" disabled>Choose…</option>{/if}
             {#each view.roster as p (p.id)}
               <option value={p.id}>{p.nickname}{p.hasBeenOne ? ' (had a turn)' : ''}</option>
             {/each}
@@ -295,6 +300,15 @@
           <div class="horde-head">
             <span><strong>{game.mobCount}</strong> in the class</span>
             {#if game.crowdCount}<span class="crew-count"><strong>{game.crowdCount}</strong> in the Comeback Crew</span>{/if}
+            {#if game.classStreak}
+              {@const streak = game.classStreak}
+              <span class="streak" title="Class Streak: {streak.length} right in a row earns a Rescue">
+                {#each Array.from({ length: streak.length }, (_, i) => i) as i (i)}
+                  <b class="pip" class:on={i < streak.count % streak.length} aria-hidden="true"></b>
+                {/each}
+                {#if streak.saved}<span class="saved">+{streak.saved} Rescue saved</span>{/if}
+              </span>
+            {/if}
           </div>
           <Crowd people={crowd} size={crowdSize} names={crowd.length <= 24} />
         </div>
@@ -302,7 +316,41 @@
     </section>
 
     <main class="center">
-      {#if phase === 'PHASE_A' && q?.peeking}
+      {#if phase === 'RESCUE' && view.rescue}
+        {@const rescue = view.rescue}
+        <div class="rescue">
+          {#if rescue.settled}
+            <div class="boom" aria-hidden="true">🛟</div>
+            {#if rescue.rescued}
+              <h1>{rescue.rescued.nickname} is back in the class!</h1>
+              <p>The class voted them out of the Comeback Crew.</p>
+            {:else}
+              <h1>Nobody to bring back</h1>
+              <p>The Comeback Crew emptied before the vote closed.</p>
+            {/if}
+          {:else}
+            <div class="rescue-head">
+              <div>
+                <span class="label">Rescue</span>
+                <h1>Class, vote someone back in!</h1>
+                <p>Pick one of the Comeback Crew on your device. <span class="tally"><strong>{rescue.voted}</strong> of {rescue.voters} voted</span></p>
+              </div>
+              <TimerRing deadline={rescueDeadline} totalMs={s.settings.rescueSeconds * 1000} paused={false} size={110} />
+            </div>
+            <ul class="candidates">
+              {#each rescue.candidates as c (c.id)}
+                <li>
+                  <Avatar name={c.nickname} size={44} />
+                  <span class="who">{c.nickname}</span>
+                  <span class="bar" style:--share={rescue.voted ? c.votes / rescue.voted : 0}></span>
+                  <strong>{c.votes}</strong>
+                </li>
+              {/each}
+            </ul>
+            <button class="skip-rescue" onclick={() => host.run((e) => e.skipRescue())}>Skip the Rescue</button>
+          {/if}
+        </div>
+      {:else if phase === 'PHASE_A' && q?.peeking}
         <div class="callout">
           <div class="eyes" aria-hidden="true">👀</div>
           <div>
@@ -396,6 +444,17 @@
             {/if}
             {#if q.reveal.momentumFilled}<b> On a Roll: a chance is won back!</b>{/if}
           </p>
+          {#if q.reveal.rescueEarned && !game.result}
+            <p class="reward" role="status">
+              <span class="burst" aria-hidden="true">💥</span>
+              <span>
+                <b>Boom! The class has earned a reward.</b>
+                {game.crowdCount
+                  ? `${game.classStreak?.length ?? 3} right in a row: next, the class votes someone back from the Comeback Crew.`
+                  : 'A Rescue, saved until someone falls to the Comeback Crew.'}
+              </span>
+            </p>
+          {/if}
           {#if q.reveal.explanation}<p class="explain"><Rich rich={q.rich?.explanation} text={q.reveal.explanation} /></p>{/if}
         {/if}
       {/if}
@@ -717,6 +776,105 @@
   }
   .crew-count {
     opacity: 0.6;
+  }
+  /* The Class Streak: a pip for each right answer toward the next Rescue. */
+  .streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .pip {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    border: 1.5px solid rgb(240 210 124 / 0.7);
+  }
+  .pip.on {
+    background: #f0d27c;
+  }
+  .saved {
+    margin-left: 0.35rem;
+    color: #f0d27c;
+    font-size: 0.85rem;
+  }
+  .reward {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 1.1rem;
+    border-radius: 14px;
+    background: rgb(240 210 124 / 0.22);
+    border: 2px solid #f0d27c;
+    font-size: 1.15rem;
+    animation: pop 500ms ease-out both;
+  }
+  .reward b {
+    display: block;
+    font-size: 1.4rem;
+  }
+  .burst {
+    font-size: 2.6rem;
+    line-height: 1;
+  }
+  .rescue {
+    display: grid;
+    gap: 1rem;
+    justify-items: center;
+    text-align: center;
+  }
+  .rescue h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+  }
+  .rescue p {
+    font-size: 1.2rem;
+    color: rgb(255 250 243 / 0.75);
+  }
+  .boom {
+    font-size: clamp(4rem, 9vw, 6rem);
+    line-height: 1;
+    animation: pop 500ms ease-out both;
+  }
+  .rescue-head {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    text-align: left;
+  }
+  .candidates {
+    list-style: none;
+    display: grid;
+    gap: 0.5rem;
+    width: min(40rem, 100%);
+    padding: 0;
+  }
+  .candidates li {
+    display: grid;
+    grid-template-columns: auto 9rem 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.2rem;
+    text-align: left;
+  }
+  .candidates .who {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .candidates .bar {
+    height: 0.8rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #f0d27c calc(var(--share) * 100%), rgb(255 250 243 / 0.12) 0);
+  }
+  .skip-rescue {
+    border: 0;
+    background: none;
+    color: rgb(255 250 243 / 0.6);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
 
   .center {

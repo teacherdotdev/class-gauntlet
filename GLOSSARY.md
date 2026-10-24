@@ -71,6 +71,14 @@ _Avoid_: Class vote, group answer
 Students who missed a question the Champion got right, and play on for smaller points.
 _Avoid_: Crowd
 
+**Class Streak**:
+Questions in a row that most of The Class got right. Every three (or however many the rules set) earn The Class a Rescue. It starts again when most of them miss, and with each new Champion.
+_Avoid_: Mob streak, combo
+
+**Rescue**:
+The reward a Class Streak earns: The Class votes one of the Comeback Crew back into The Class. One earned while the Comeback Crew is empty waits until someone falls. There are no Rescues when there are no Student Devices.
+_Avoid_: Revive, comeback vote
+
 ### Classic
 
 **Classic**:
