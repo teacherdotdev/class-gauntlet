@@ -1,14 +1,18 @@
 # Class Gauntlet
 
-A classroom review game: a teacher hosts from one tab, students join on their own devices, and the class plays through review questions in one of several Game Modes.
+A classroom review game: a teacher hosts from one tab, students join on their own devices (or play with no student devices at all), and the class plays through review questions in one of several Game Modes.
 
 ## Language
 
 ### Hosting
 
 **Session**:
-One hosted room, from opening the lobby to the final standings, played in one Game Mode under one PIN.
+One hosted room, from opening the lobby to the final standings, played in one Game Mode, under one PIN when students join on their own devices.
 _Avoid_: Room, match
+
+**Student Devices**:
+The phones, tablets or laptops students join a Session on. A Session uses Student Devices unless the teacher turns them off; then it's played with no student devices: the whole game happens on the one screen at the front of the room, and the teacher enters every choice. A Session never mixes the two, and every Game Mode can be played both ways.
+_Avoid_: Big Screen, projector mode, smartboard mode, teacher mode, offline mode
 
 **Game Mode**:
 The rules a Session is played by. The teacher picks it first, then sets the Session up for it.
@@ -26,7 +30,7 @@ _Avoid_: Tag, category
 A question's words with formatting, math and pictures, in the shape Question Commons uses. Every question also keeps them as plain text, for search, spreadsheets and History. A picture lives in the teacher's browser and is sent to each phone that needs it.
 
 **History**:
-The record, kept in the teacher's browser, of every finished Session: when, which Game Mode, and how each student or Team placed.
+The record, kept in the teacher's browser, of every finished Session that had someone to place: when, which Game Mode, whether it used Student Devices, and how each student or Team placed.
 
 **Backup**:
 One file holding everything the teacher's browser keeps: Question Banks, History, and each Game Mode's remembered rules and setup. Importing a Backup replaces it all. A Game Mode's rules are set while hosting it and remembered for next time; Settings holds only the Backup.
@@ -43,6 +47,10 @@ _Avoid_: Challenger, Gauntlet, 1v100, Spotlight Player, The One
 **The Class**:
 Everyone in a Champion game who is still challenging the Champion.
 _Avoid_: Mob
+
+**Class Majority**:
+The choice most of The Class picked, as the teacher enters it when there are no student devices. In a Champion game with no student devices, the Champion plays against it instead of against each classmate.
+_Avoid_: Class vote, group answer
 
 **Comeback Crew**:
 Students who missed a question the Champion got right, and play on for smaller points.

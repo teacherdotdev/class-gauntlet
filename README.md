@@ -19,6 +19,16 @@ A serverless rebuild of an [open-source EdTech-a-thon project](https://github.co
 
 Inside a question the game moves itself along (timer, hand-off to the challenger, drumroll, reveal); the teacher taps **Next** between questions. The scoring rules are ported unchanged from the original (`src/lib/game/scoring.ts`), including the optional **On a Roll** rule: quick answers without a lifeline win the challenger a chance back once per round.
 
+## With no student devices
+
+For classes without devices (or when the Wi-Fi is down), the Games page has a **Use student devices** switch above Host; turn it off. Nobody joins and nothing touches the network: the game runs on the teacher's screen alone, and the teacher taps every choice (or uses the keyboard or a presentation clicker: → / PageDown / Space move on, A–D or 1–4 pick an answer, 1–8 pick a Team).
+
+- **Classic** becomes a class review: each question with a guide timer, answers on whiteboards or by hand, and the teacher shows the answer. No scores or Report.
+- **Peril!** is played in Teams with nobody in them: the teacher taps the Team that buzzed, then the answer it gave, and types a Treasure Trove's Wager. Only the Buzz has a clock.
+- **Champion**: the teacher names each Champion. The Champion looks away while the class sees the question and votes by hand; the teacher taps the Class Majority, then the Champion answers by tapping. A right answer adds 100 to the Prize Pot (200 when the class was wrong); out of chances, The Class wins the pot.
+
+Every new Game Mode must play with no student devices too ([ADR 0001](docs/adr/0001-every-game-mode-plays-without-student-devices.md)).
+
 ## Screens
 
 | Route | Who | What |

@@ -71,6 +71,9 @@ export type Settings = {
   momentumFastK: number;
   momentumWindowMinMs: number;
   momentumWindowMaxMs: number;
+  /** With no student devices, what a right answer adds to the Prize Pot, and what it adds when the Class Majority was wrong. */
+  noDevicesPot: number;
+  noDevicesBeatClassPot: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -93,6 +96,8 @@ export const DEFAULT_SETTINGS: Settings = {
   momentumFastK: 1.25,
   momentumWindowMinMs: 8_000,
   momentumWindowMaxMs: 20_000,
+  noDevicesPot: 100,
+  noDevicesBeatClassPot: 200,
 };
 
 export type Phase =
@@ -125,7 +130,9 @@ export type HelpResult =
       speakers: { playerId: string; nickname: string; choice: number }[];
       bonusEach: number;
     }
-  | { type: 'trust'; choice: number; counts: number[] };
+  | { type: 'trust'; choice: number; counts: number[] }
+  /** Poll the Class with no student devices: the Class Majority. */
+  | { type: 'majority'; choice: number };
 
 export type Attempt = {
   id: string;
@@ -146,6 +153,10 @@ export type Attempt = {
   oneMs: number | null;
   helpUsed: Help | null;
   helpResult: HelpResult | null;
+  /** No student devices only: false while the Champion looks away and before the class sees the question. */
+  classShown?: boolean;
+  /** No student devices only: the Class Majority the teacher tapped, or null when they skipped it. */
+  classMajority?: number | null;
 };
 
 export type ScoreDelta = { playerId: string; points: number; reason: string };
@@ -160,6 +171,8 @@ export type RevealResult = {
   bankDelta: number;
   momentumCredited: boolean;
   momentumFilled: boolean;
+  /** No student devices only. */
+  classMajority?: number | null;
 };
 
 export type GameResult = {
@@ -191,6 +204,8 @@ export type Session = {
   code: string;
   createdAt: number;
   setTitle: string;
+  /** Played with no student devices: the teacher enters every choice, and nobody joins. */
+  noDevices?: boolean;
   questions: Question[];
   /** Order the deck is played in (indexes into `questions`). */
   order: number[];

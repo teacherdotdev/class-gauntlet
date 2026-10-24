@@ -1,12 +1,15 @@
 <script lang="ts">
   // Peril! on the projector: the Board of Tiles, then the open Tile with its
   // buzzers, and the standings when every Tile is played. The teacher can
-  // pick a Tile for whoever has Control at any time.
+  // pick a Tile for whoever has Control at any time. With no student devices the
+  // teacher also taps the Team that buzzed, the answer it gave, and a
+  // Treasure Trove's Wager.
   import Rich from '../rich/Rich.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
   import TimerRing from '../components/TimerRing.svelte';
   import { emptyDraft, onBoard } from '../game/peril/draft';
   import { host } from '../host.svelte';
+  import { choiceOf, hostKey } from './keys';
   import { spacedCode } from '../protocol';
   import BoardBuilder from '../setup/BoardBuilder.svelte';
   import PerilRulesDialog from './PerilRulesDialog.svelte';
@@ -26,7 +29,37 @@
         ? s.settings.wagerSeconds * 1000
         : (v.solo ? s.settings.answerSeconds : s.settings.voteSeconds) * 1000,
   );
-  const running = $derived(['BUZZING', 'ANSWERING', 'WAGERING'].includes(v.phase));
+  const running = $derived(['BUZZING', 'ANSWERING', 'WAGERING'].includes(v.phase) && s.open?.deadline != null);
+
+  // No student devices: what the Team with a Treasure Trove may wager.
+  const maxWager = $derived(Math.max(v.teams.find((t) => t.id === s.open?.answering)?.points ?? 0, 500));
+  let wagerAmount = $state(100);
+  $effect(() => {
+    if (v.phase === 'WAGERING') wagerAmount = Math.min(100, maxWager);
+  });
+  const wagers = $derived(
+    [...new Set([5, Math.floor(maxWager / 4), Math.floor(maxWager / 2), maxWager])].filter((n) => n >= 5),
+  );
+
+  function onkeydown(event: KeyboardEvent) {
+    const key = hostKey(event);
+    if (!key) return;
+    if (key.kind === 'next') {
+      if (v.phase === 'READING') host.runPeril((e) => e.armBuzzers());
+      else if (v.phase === 'REVEAL') host.runPeril((e) => e.next());
+      else return;
+    } else if (!v.noDevices) return;
+    else if (v.phase === 'BUZZING' && key.kind === 'number') {
+      const team = v.teams[key.index];
+      if (!team) return;
+      host.runPeril((e) => e.buzzFor(team.id));
+    } else if (v.phase === 'ANSWERING') {
+      const choice = choiceOf(key, open?.choices?.length ?? 0);
+      if (choice === null) return;
+      host.runPeril((e) => e.answerFor(choice));
+    } else return;
+    event.preventDefault();
+  }
 
   // Another board starts empty; the last one's questions have all been played.
   let building = $state(false);
@@ -43,9 +76,11 @@
   const letters = ['A', 'B', 'C', 'D'];
 </script>
 
+<svelte:window {onkeydown} />
+
 <div class="arena">
   <header class="top">
-    <span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>
+    {#if v.noDevices}<span class="pin">No student devices</span>{:else}<span class="pin">PIN <strong>{spacedCode(v.code)}</strong></span>{/if}
     <ol class="scores">
       {#each scores as c (c.id)}
         <li class:control={v.control?.id === c.id}>
@@ -97,7 +132,19 @@
           />{/if}
       </div>
 
-      {#if v.phase === 'WAGERING'}
+      {#if v.phase === 'WAGERING' && v.noDevices}
+        <h1 class="prompt">💰 Treasure Trove!</h1>
+        <p class="status"><strong>{open.answering}</strong>, how much will you wager? (up to {maxWager})</p>
+        <div class="team-picks">
+          {#each wagers as amount (amount)}
+            <button class="pick" onclick={() => host.runPeril((e) => e.wagerFor(amount))}>{amount === maxWager ? `All ${amount}` : amount}</button>
+          {/each}
+        </div>
+        <form class="wager" onsubmit={(event) => { event.preventDefault(); host.runPeril((e) => e.wagerFor(wagerAmount)); }}>
+          <input type="number" min="5" max={maxWager} bind:value={wagerAmount} aria-label="Wager" />
+          <button class="go">Wager</button>
+        </form>
+      {:else if v.phase === 'WAGERING'}
         <h1 class="prompt">💰 Treasure Trove!</h1>
         <p class="status">
           {open.answering}
@@ -111,6 +158,7 @@
               index={i}
               {text} rich={open.rich?.choices[i]}
               big
+              onclick={v.noDevices && v.phase === 'ANSWERING' ? () => host.runPeril((e) => e.answerFor(i)) : undefined}
               state={open.correct === null
                 ? 'idle'
                 : i === open.correct
@@ -124,6 +172,11 @@
         <p class="status">
           {#if v.phase === 'READING'}
             Read it together, then arm the buzzers.
+          {:else if v.phase === 'BUZZING' && v.noDevices}
+            <strong>Buzz now!</strong> Who was first?
+          {:else if v.phase === 'ANSWERING' && v.noDevices}
+            {#if open.wager !== null}<strong>{open.answering}</strong> wagered {open.wager}.{/if}
+            <strong>{open.answering}</strong>, what’s your answer? Tap the one they say.
           {:else if v.phase === 'BUZZING'}
             <strong>Buzz now!</strong>{#if open.lockedOut.length}&nbsp;· Out: {open.lockedOut.join(
                 ', ',
@@ -147,6 +200,17 @@
         {#if v.phase === 'REVEAL' && open.explanation}<p class="explanation">
             <Rich rich={open.rich?.explanation} text={open.explanation} />
           </p>{/if}
+      {/if}
+
+      {#if v.phase === 'BUZZING' && v.noDevices}
+        <div class="team-picks">
+          {#each v.teams as team, i (team.id)}
+            <button class="pick" disabled={!!s.open?.lockedOut.includes(team.id)} onclick={() => host.runPeril((e) => e.buzzFor(team.id))}>
+              <small>{i + 1}</small> {team.name}
+            </button>
+          {/each}
+        </div>
+        {#if open.lockedOut.length}<p class="explanation">Out: {open.lockedOut.join(', ')}</p>{/if}
       {/if}
 
       <div class="actions">
@@ -354,6 +418,47 @@
     text-align: center;
     color: rgb(255 250 243 / 0.75);
     font-style: italic;
+  }
+  .team-picks {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  .pick {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font: inherit;
+    font-weight: 800;
+    font-size: 1.4rem;
+    padding: 0.9rem 1.6rem;
+    border-radius: 14px;
+    border: 3px solid var(--or);
+    background: linear-gradient(170deg, #2f5d8f, #1d3c60);
+    color: var(--paper);
+    cursor: pointer;
+  }
+  .pick small {
+    font-size: 0.9rem;
+    opacity: 0.6;
+  }
+  .pick:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+  .wager {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  .wager input {
+    width: 8rem;
+    font: inherit;
+    font-size: 1.4rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    border: none;
   }
   .actions {
     display: flex;

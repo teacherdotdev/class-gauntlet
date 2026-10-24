@@ -1,4 +1,4 @@
-import { momentumWindowMs, scoreReveal } from './scoring';
+import { momentumWindowMs, scoreNoDevicesReveal, scoreReveal } from './scoring';
 import {
   DEFAULT_SETTINGS,
   type Attempt,
@@ -18,6 +18,12 @@ import {
  *   LOBBY ─start→ BETWEEN ─open→ PHASE_A (class answers) ─timer/all in→ PHASE_A_LOCKED
  *   ─show to One→ PHASE_B (One answers, may use a lifeline) ─final answer→ ONE_LOCKED
  *   ─reveal→ REVEAL ─next→ PHASE_A … or, when the game is over, LEADERBOARD ─start→ BETWEEN …
+ *
+ * With no student devices nobody joins. The teacher names each Champion as their
+ * round starts. In PHASE_A the Champion looks away, the teacher shows the
+ * class the question (showToClass), the class votes by hand, and the teacher
+ * taps the Class Majority. The Champion answers by tapping the screen. The
+ * Class is one entry in the standings.
  */
 
 export type Result = { ok: true } | { ok: false; message: string };
@@ -25,6 +31,8 @@ const ok: Result = { ok: true };
 const no = (message: string): Result => ({ ok: false, message });
 
 export const MAX_PLAYERS = 40;
+/** The Class's entry in a Champion game with no student devices: it wins the pots the Champions lose. */
+export const CLASS_ID = 'the-class';
 export const NICKNAME_MAX = 24;
 const DENYLIST = ['damn', 'idiot', 'stupid', 'hell', 'crap', 'sucks', 'loser', 'dumb'];
 
@@ -73,6 +81,7 @@ export function createSession(input: {
   setTitle: string;
   questions: Question[];
   settings?: Partial<Settings>;
+  noDevices?: boolean;
   clock?: Clock;
 }): Session {
   const clock = input.clock ?? systemClock;
@@ -82,6 +91,7 @@ export function createSession(input: {
     code: input.code,
     createdAt: clock.now(),
     setTitle: input.setTitle,
+    ...(input.noDevices ? { noDevices: true } : {}),
     questions: input.questions.map((q) => ({ ...q, choices: [...q.choices] })),
     order: settings.shuffleQuestions
       ? shuffled(input.questions.length, clock.random)
@@ -165,18 +175,8 @@ export class Engine {
       s.players.map((p) => p.nickname),
     );
     if (problem) return { ok: false, message: problem };
-    const player: Player = {
-      id: randomId(this.clock.random),
-      secret: randomId(this.clock.random),
-      nickname,
-      // Late joiners play with the Comeback Crew until the next game starts.
-      role: s.phase === 'LOBBY' ? 'mob' : 'crowd',
-      points: 0,
-      streak: 0,
-      hasBeenOne: false,
-      joinedAt: this.clock.now(),
-      connected: true,
-    };
+    // Late joiners play with the Comeback Crew until the next game starts.
+    const player = this.newPlayer(nickname, s.phase === 'LOBBY' ? 'mob' : 'crowd');
     s.players.push(player);
     this.changed();
     return { ok: true, player, rejoined: false };
@@ -279,6 +279,44 @@ export class Engine {
           : this.suggestedOne();
     if (!one) return no('Pick a student to be The One.');
     if (s.players.length < 2) return no('You need at least two students to play.');
+    return this.beginGame(one);
+  }
+
+  /** With no student devices: starts a round with the Champion the teacher named; a name that has played before keeps its points. */
+  startNamedRound(name: string): Result {
+    const s = this.session;
+    if (!s.noDevices) return no('Students are playing on their devices.');
+    if (s.phase !== 'LOBBY' && s.phase !== 'LEADERBOARD') return no('Finish this game first.');
+    if (s.questions.length === 0) return no('This question set is empty.');
+    const nickname = normalizeNickname(name).slice(0, NICKNAME_MAX);
+    if (!nickname) return no('Type the champion’s name.');
+    if (nickname.toLowerCase() === 'the class') return no('Give the champion a name of their own.');
+    if (!this.player(CLASS_ID))
+      s.players.push({ ...this.newPlayer('The Class', 'mob'), id: CLASS_ID, secret: '', connected: false });
+    let one = s.players.find((p) => p.id !== CLASS_ID && p.nickname.toLowerCase() === nickname.toLowerCase());
+    if (!one) {
+      one = { ...this.newPlayer(nickname, 'one'), connected: false };
+      s.players.push(one);
+    }
+    return this.beginGame(one);
+  }
+
+  private newPlayer(nickname: string, role: Player['role']): Player {
+    return {
+      id: randomId(this.clock.random),
+      secret: randomId(this.clock.random),
+      nickname,
+      role,
+      points: 0,
+      streak: 0,
+      hasBeenOne: false,
+      joinedAt: this.clock.now(),
+      connected: true,
+    };
+  }
+
+  private beginGame(one: Player): Result {
+    const s = this.session;
     const size = Math.min(s.settings.questionsPerGame, s.questions.length);
     const deck: number[] = [];
     for (let i = 0; i < size; i++) {
@@ -330,7 +368,9 @@ export class Engine {
       index: game.offset + 1,
       question,
       startedAt: now,
-      deadline: now + s.settings.timerSeconds * 1000,
+      // With no student devices the clock starts once the class sees the question.
+      deadline: s.noDevices ? null : now + s.settings.timerSeconds * 1000,
+      ...(s.noDevices ? { classShown: false } : {}),
       pausedRemainingMs: null,
       pausedAt: null,
       eligible,
@@ -343,7 +383,7 @@ export class Engine {
     };
     game.reveal = null;
     s.phase = 'PHASE_A';
-    if (eligible.length === 0) s.phase = 'PHASE_A_LOCKED';
+    if (eligible.length === 0 && !s.noDevices) s.phase = 'PHASE_A_LOCKED';
     return this.changed();
   }
 
@@ -362,11 +402,36 @@ export class Engine {
     return this.changed();
   }
 
-  /** Locks the class's answers early (or when the timer runs out). */
+  /** With no student devices: the Champion has looked away, so the class may see the question. */
+  showToClass(): Result {
+    const s = this.session;
+    const active = s.game?.active;
+    if (!s.noDevices || !active || s.phase !== 'PHASE_A' || active.classShown) return no('The class can already see the question.');
+    const now = this.clock.now();
+    active.classShown = true;
+    active.startedAt = now;
+    active.deadline = s.paused ? null : now + s.settings.timerSeconds * 1000;
+    active.pausedRemainingMs = s.paused ? s.settings.timerSeconds * 1000 : null;
+    return this.changed();
+  }
+
+  /** With no student devices: the answer most of the class chose, as the teacher taps it. */
+  classAnswer(choice: number): Result {
+    const s = this.session;
+    const active = s.game?.active;
+    if (!s.noDevices) return no('The class answers on their devices.');
+    if (!active || s.phase !== 'PHASE_A' || !active.classShown) return no('The class isn’t answering right now.');
+    if (!Number.isInteger(choice) || choice < 0 || choice >= active.question.choices.length) return no('Pick an answer.');
+    active.classMajority = choice;
+    return this.lock();
+  }
+
+  /** Locks the class's answers early (or when the timer runs out). With no student devices, skips the class's vote. */
   lock(): Result {
     const s = this.session;
     const active = s.game?.active;
     if (!active || s.phase !== 'PHASE_A') return no('Answers are not open.');
+    if (s.noDevices) active.classMajority ??= null;
     active.deadline = null;
     active.pausedRemainingMs = null;
     active.pausedAt = null;
@@ -376,9 +441,10 @@ export class Engine {
     return this.changed();
   }
 
-  /** Call often; locks Phase A when its timer runs out. Returns true if anything changed. */
+  /** Call often; locks Phase A when its timer runs out. Returns true if anything changed. With no student devices the timer is only a guide. */
   tick(): boolean {
     const s = this.session;
+    if (s.noDevices) return false;
     const active = s.game?.active;
     if (s.phase === 'PHASE_A' && !s.paused && active?.deadline != null && this.clock.now() >= active.deadline) {
       this.lock();
@@ -394,7 +460,7 @@ export class Engine {
     if (!active || s.phase !== 'PHASE_A_LOCKED') return no('The class is still answering.');
     active.phaseBStartedAt = this.clock.now();
     s.phase = 'PHASE_B';
-    if (!this.one?.connected) this.pause('one_disconnected');
+    if (!s.noDevices && !this.one?.connected) this.pause('one_disconnected');
     return this.changed();
   }
 
@@ -409,11 +475,18 @@ export class Engine {
     return { ok: true, active };
   }
 
-  /** Poll the Class: The One picks an answer and sees how many classmates chose it. */
+  /** Poll the Class: The One picks an answer and sees how many classmates chose it. With no student devices, it shows the Class Majority. */
   helpPoll(playerId: string, choice: number): Result {
     const check = this.helpCheck(playerId, 'poll');
     if (!check.ok) return check;
     const { active } = check;
+    if (this.session.noDevices) {
+      if (active.classMajority == null) return no('The class didn’t vote on this one. Try another lifeline!');
+      active.helpUsed = 'poll';
+      active.helpResult = { type: 'majority', choice: active.classMajority };
+      this.session.game!.helpsUsed.poll = true;
+      return this.changed();
+    }
     if (!Number.isInteger(choice) || choice < 0 || choice >= active.question.choices.length)
       return no('Choose one of the answers shown.');
     active.helpUsed = 'poll';
@@ -427,11 +500,17 @@ export class Engine {
     return this.changed();
   }
 
-  /** Ask Two: one classmate who got it right and one who didn't explain their thinking out loud. */
+  /** Ask Two: one classmate who got it right and one who didn't explain their thinking out loud. With no student devices the teacher chooses them, so this only marks it used. */
   helpAsk(playerId: string): Result {
     const check = this.helpCheck(playerId, 'ask');
     if (!check.ok) return check;
     const { active } = check;
+    if (this.session.noDevices) {
+      active.helpUsed = 'ask';
+      active.helpResult = { type: 'ask', speakers: [], bonusEach: 0 };
+      this.session.game!.helpsUsed.ask = true;
+      return this.changed();
+    }
     const here = active.answers.filter((a) => this.player(a.playerId)?.connected);
     const right = here.filter((a) => a.choice === active.question.correct);
     const wrong = here.filter((a) => a.choice !== active.question.correct);
@@ -455,11 +534,18 @@ export class Engine {
     return this.changed();
   }
 
-  /** Go with the Class: lock in the class's most popular answer. */
+  /** Go with the Class: lock in the class's most popular answer (with no student devices, the Class Majority). */
   helpTrust(playerId: string): Result {
     const check = this.helpCheck(playerId, 'trust');
     if (!check.ok) return check;
     const { active } = check;
+    if (this.session.noDevices) {
+      if (active.classMajority == null) return no('The class didn’t vote on this one. Try another lifeline!');
+      active.helpUsed = 'trust';
+      active.helpResult = { type: 'trust', choice: active.classMajority, counts: [] };
+      this.session.game!.helpsUsed.trust = true;
+      return this.lockOne(active, active.classMajority);
+    }
     if (active.answers.length === 0) return no('Nobody in the class answered this one.');
     const counts = active.question.choices.map((_, i) => active.answers.filter((a) => a.choice === i).length);
     const top = Math.max(...counts);
@@ -508,11 +594,8 @@ export class Engine {
     if (!game || !active || s.phase !== 'ONE_LOCKED' || active.oneAnswer === null) return no('The One hasn’t locked an answer yet.');
     const correct = active.question.correct;
     const oneCorrect = active.oneAnswer === correct;
-    const answers = new Map(active.answers.map((a) => [a.playerId, a.choice]));
-    const scored = scoreReveal({
+    const shared = {
       players: s.players.map((p) => ({ id: p.id, role: p.role, points: p.points, streak: p.streak })),
-      eligible: active.eligible,
-      answers,
       correct,
       oneId: game.oneId,
       oneCorrect,
@@ -521,7 +604,10 @@ export class Engine {
       questionNumber: active.index,
       deckSize: game.deck.length,
       settings: s.settings,
-    });
+    };
+    const scored = s.noDevices
+      ? scoreNoDevicesReveal({ ...shared, classId: CLASS_ID, classMajority: active.classMajority ?? null })
+      : scoreReveal({ ...shared, eligible: active.eligible, answers: new Map(active.answers.map((a) => [a.playerId, a.choice])) });
 
     // On a Roll: fast, unaided right answers fill a meter that restores one strike, once per game.
     let strikes = scored.strikes;
@@ -566,6 +652,7 @@ export class Engine {
       bankDelta: scored.bankDelta,
       momentumCredited,
       momentumFilled,
+      ...(s.noDevices ? { classMajority: active.classMajority ?? null } : {}),
     };
     if (scored.endReason) {
       game.result = { reason: scored.endReason, payouts: scored.payouts, bank: scored.bank, bankedByOne: scored.bankedByOne };
@@ -582,7 +669,7 @@ export class Engine {
     if (s.phase !== 'REVEAL' || !s.game) return no('Reveal the answer first.');
     if (s.game.result) {
       s.phase = 'LEADERBOARD';
-      s.pendingNextOneId = this.suggestedOne()?.id ?? null;
+      s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
       return this.changed();
     }
     return this.openQuestion();
@@ -632,7 +719,7 @@ export class Engine {
     s.paused = false;
     this.pauseReason = null;
     s.phase = 'LEADERBOARD';
-    s.pendingNextOneId = this.suggestedOne()?.id ?? null;
+    s.pendingNextOneId = s.noDevices ? null : (this.suggestedOne()?.id ?? null);
     return this.changed();
   }
 

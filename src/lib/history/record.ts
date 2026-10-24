@@ -15,6 +15,8 @@ export type GameRecord = {
   title: string;
   startedAt: number;
   endedAt: number;
+  /** Played with no student devices. Absent in records from before it existed. */
+  noDevices?: boolean;
   /** Empty unless the game was played in Teams. */
   teams: { name: string; rank: number; points: number }[];
   /** In Teams, a student's rank and points are their Team's. In unscored Classic, points are right answers. */
@@ -22,7 +24,12 @@ export type GameRecord = {
 };
 
 export function recordOf(session: Session | PerilSession | ClassicSession, endedAt: number): GameRecord {
-  const base = { id: `${session.code}-${session.createdAt}`, startedAt: session.createdAt, endedAt };
+  const base = {
+    id: `${session.code}-${session.createdAt}`,
+    startedAt: session.createdAt,
+    endedAt,
+    ...(session.noDevices ? { noDevices: true } : {}),
+  };
   if (session.mode === 'classic') {
     const rows = reportOf(session).students.map((s) => ({ nickname: s.nickname, points: session.settings.scoring ? s.points : s.correct }));
     rows.sort((a, b) => b.points - a.points || a.nickname.localeCompare(b.nickname));

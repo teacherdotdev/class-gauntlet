@@ -1,7 +1,8 @@
 <script lang="ts">
   // The waiting room, on the projector: where to go, the PIN, a QR code, and
   // everyone who has joined. Tap a name to choose the first champion or to
-  // remove them.
+  // remove them. With no student devices nobody joins: the teacher names the first
+  // champion here.
   import Avatar from '../components/Avatar.svelte';
   import Gauntlet from '../components/Gauntlet.svelte';
   import { host } from '../host.svelte';
@@ -13,6 +14,9 @@
   const s = $derived(host.session!);
   const players = $derived(s.players);
   let menuFor = $state('');
+  let champion = $state('Champion 1');
+  const start = () =>
+    s.noDevices ? host.run((e) => e.startNamedRound(champion)) : host.run((e) => e.startGame());
 
   function choose(id: string) {
     host.run((e) => e.chooseNextOne(s.pendingNextOneId === id ? null : id));
@@ -21,20 +25,31 @@
 </script>
 
 <div class="lobby">
-  <JoinBanner />
+  {#if !s.noDevices}<JoinBanner />{/if}
 
   <div class="bar">
     <button class="icon-btn" onclick={onsettings} aria-label="Settings" title="Settings">
       <Settings size={22} />
     </button>
-    <span class="count"><strong>{players.length}</strong> {players.length === 1 ? 'player' : 'players'}</span>
+    {#if !s.noDevices}<span class="count"><strong>{players.length}</strong> {players.length === 1 ? 'player' : 'players'}</span>{/if}
     <span class="title">{s.setTitle}</span>
-    <button class="start" disabled={players.length < 2} onclick={() => host.run((e) => e.startGame())}>
+    <button class="start" disabled={s.noDevices ? !champion.trim() : players.length < 2} onclick={start}>
       Start
     </button>
   </div>
 
-  {#if players.length === 0}
+  {#if host.notice}<p class="notice" role="alert">{host.notice}</p>{/if}
+
+  {#if s.noDevices}
+    <form class="empty" onsubmit={(event) => { event.preventDefault(); start(); }}>
+      <Gauntlet size={170} />
+      <label class="first">
+        <span>Who takes up the gauntlet first?</span>
+        <input bind:value={champion} maxlength="24" aria-label="First champion’s name" />
+      </label>
+      <span class="note">Everyone else is the class. They vote with their hands while the champion looks away.</span>
+    </form>
+  {:else if players.length === 0}
     <div class="empty">
       <Gauntlet size={170} />
       <p>Waiting for players…</p>
@@ -135,6 +150,32 @@
     justify-items: center;
     gap: 1rem;
     opacity: 0.85;
+  }
+  .first {
+    display: grid;
+    gap: 0.6rem;
+    justify-items: center;
+    font-size: 1.4rem;
+  }
+  .first input {
+    font: inherit;
+    font-family: var(--display);
+    font-size: 2.2rem;
+    text-align: center;
+    width: min(24rem, 80vw);
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    border: 3px solid var(--or);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .note {
+    font-size: 1.15rem;
+    color: rgb(255 250 243 / 0.7);
+  }
+  .notice {
+    text-align: center;
+    color: var(--amber-strong);
   }
   .empty p {
     font-family: var(--display);

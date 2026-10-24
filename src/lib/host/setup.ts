@@ -21,6 +21,7 @@ const keys = {
   perilSetup: 'classgauntlet:peril-setup',
   classicRules: 'classgauntlet:classic-rules',
   classicDeck: 'classgauntlet:classic-deck',
+  noDevices: 'classgauntlet:no-devices',
 } as const;
 
 function load<T>(key: string, fallback: T): T {
@@ -73,3 +74,11 @@ export const saveClassicRules = (rules: ClassicSettings) => save(keys.classicRul
 /** The questions (by id) Classic last played, in order. */
 export const classicDeck = (): string[] => load<{ ids: string[] }>(keys.classicDeck, { ids: [] }).ids;
 export const saveClassicDeck = (ids: string[]) => save(keys.classicDeck, { ids });
+
+export type GameModeName = 'champion' | 'peril' | 'classic';
+
+/** Whether each Game Mode was last hosted with Student Devices turned off. */
+export const playsWithoutDevices = (mode: GameModeName): boolean =>
+  !!load<Partial<Record<GameModeName, boolean>>>(keys.noDevices, {})[mode];
+export const savePlaysWithoutDevices = (mode: GameModeName, noDevices: boolean) =>
+  save(keys.noDevices, { ...load(keys.noDevices, {}), [mode]: noDevices });

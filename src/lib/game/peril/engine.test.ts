@@ -340,3 +340,62 @@ describe('Peril! rules', () => {
     expect(engine.updateSettings({ treasureTrove: false }).ok).toBe(false);
   });
 });
+
+describe('Peril! with no student devices', () => {
+  function noDevices() {
+    let now = 1_000_000;
+    let seed = 3;
+    const clock = { now: () => now, random: () => (seed = (seed * 16807) % 2147483647) / 2147483647 };
+    const engine = new PerilEngine(
+      createPerilSession({ code: '123456', settings: { teams: { names: ['Red', 'Blue'], assign: 'auto' } }, noDevices: true, clock }),
+      clock,
+    );
+    const ok = (result: { ok: boolean; message?: string }) => expect(result).toEqual({ ok: true });
+    const [red, blue] = engine.session.teams.map((t) => t.id);
+    return { engine, ok, red, blue, advance: (ms: number) => (now += ms) };
+  }
+
+  test('Teams with nobody in them play: the teacher taps who buzzed and what they answered', () => {
+    const { engine, ok, red, blue } = noDevices();
+    ok(engine.startBoard(board()));
+    expect(engine.session.control).not.toBeNull();
+    ok(engine.pickTile(0, 0));
+    ok(engine.armBuzzers());
+    ok(engine.buzzFor(blue));
+    expect(engine.session.open!.deadline).toBeNull();
+    ok(engine.answerFor(0));
+    // Wrong: Blue is out and the buzzers re-arm for Red.
+    expect(engine.session.phase).toBe('BUZZING');
+    expect(engine.buzzFor(blue).ok).toBe(false);
+    ok(engine.buzzFor(red));
+    ok(engine.answerFor(1));
+    expect(engine.session.phase).toBe('REVEAL');
+    expect(engine.session.teams.map((t) => t.points)).toEqual([100, -100]);
+    expect(engine.session.control).toBe(red);
+  });
+
+  test('nobody buzzing still runs out the clock', () => {
+    const { engine, ok, advance } = noDevices();
+    ok(engine.startBoard(board()));
+    ok(engine.pickTile(0, 0));
+    ok(engine.armBuzzers());
+    advance(60_000);
+    expect(engine.tick()).toBe(true);
+    expect(engine.session.phase).toBe('REVEAL');
+  });
+
+  test('a Treasure Trove takes the Wager the teacher enters, with no clock', () => {
+    const { engine, ok, advance } = noDevices();
+    ok(engine.startBoard(board('a1')));
+    const holder = engine.session.control;
+    ok(engine.pickTile(0, 0));
+    expect(engine.session.phase).toBe('WAGERING');
+    advance(60_000);
+    expect(engine.tick()).toBe(false);
+    ok(engine.wagerFor(10_000));
+    expect(engine.session.open!.wager).toBe(500);
+    expect(engine.session.open!.deadline).toBeNull();
+    ok(engine.answerFor(1));
+    expect(engine.session.teams.find((t) => t.id === holder)!.points).toBe(500);
+  });
+});

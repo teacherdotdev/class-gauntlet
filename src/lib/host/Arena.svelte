@@ -3,14 +3,20 @@
   // built from the public view, so the question stays hidden while the class
   // answers and the right answer stays hidden until the reveal. Inside a
   // question the game moves itself along; the teacher taps Next in between.
+  // With no student devices, the champion looks away while the
+  // class sees the question and votes by hand, the teacher taps the Class
+  // Majority, and the champion answers by tapping up here.
   import Rich from '../rich/Rich.svelte';
   import Avatar from '../components/Avatar.svelte';
   import AnswerBlock from '../components/AnswerBlock.svelte';
+  import ChampionSteps from '../components/art/ChampionSteps.svelte';
   import Crowd, { type CrowdMember } from '../components/Crowd.svelte';
   import LifelineIcon from '../components/LifelineIcon.svelte';
   import SpotlightSweep from '../components/SpotlightSweep.svelte';
   import TimerRing from '../components/TimerRing.svelte';
+  import { CLASS_ID } from '../game/engine';
   import { host } from '../host.svelte';
+  import { choiceOf, hostKey } from './keys';
   import { spacedCode } from '../protocol';
   import { endDetail, endHeadline, helpName, plural } from '../words';
 
@@ -25,6 +31,8 @@
   const oneId = $derived(game?.one.id ?? '');
   const deadline = $derived(q?.remainingMs != null ? Date.now() + q.remainingMs : null);
   const name = (id: string) => view.roster.find((p) => p.id === id)?.nickname ?? 'Someone';
+  const noDevices = $derived(view.noDevices);
+  const classPoints = $derived(view.roster.find((p) => p.id === CLASS_ID)?.points ?? 0);
 
   const spotOnOne = $derived(['PHASE_B', 'ONE_LOCKED', 'REVEAL'].includes(phase));
   const crowdLit = $derived(['PHASE_A', 'PHASE_A_LOCKED', 'REVEAL'].includes(phase));
@@ -44,7 +52,7 @@
   // it mounts, before any effect here could reset a plain flag, so each round
   // is compared instead of reset.
   let landedOrdinal = $state(0);
-  const landed = $derived(!!game && landedOrdinal === game.ordinal);
+  const landed = $derived(!!game && (noDevices || landedOrdinal === game.ordinal));
 
   let menuOpen = $state(false);
 
@@ -78,9 +86,12 @@
 
   const next = $derived.by(() => {
     if (phase === 'BETWEEN') return landed ? { label: 'Begin', run: () => host.run((e) => e.openQuestion()) } : null;
+    if (phase === 'PHASE_A' && q?.peeking) return { label: 'Show the class', run: () => host.run((e) => e.showToClass()) };
     if (phase === 'PHASE_A') return { label: 'Skip', run: () => host.run((e) => e.lock()), quiet: true };
+    if (phase === 'PHASE_A_LOCKED' && noDevices) return { label: `Show ${one} the question`, run: () => host.run((e) => e.showToOne()) };
     if (phase === 'REVEAL')
       return { label: game?.result ? 'Scoreboard' : 'Next question', run: () => host.run((e) => e.next()) };
+    if (phase === 'LEADERBOARD' && noDevices) return { label: 'Next round', run: () => host.run((e) => e.startNamedRound(nextName)) };
     if (phase === 'LEADERBOARD') return { label: 'Next round', run: () => host.run((e) => e.startGame()) };
     return null;
   });
@@ -99,16 +110,42 @@
     } else host.run((e) => e.answerForOne(i));
   }
   function tapLifeline(h: 'poll' | 'ask' | 'trust') {
-    if (h === 'poll') pollMode = !pollMode;
+    // With no student devices, Poll the Class just shows the Class Majority.
+    if (h === 'poll' && noDevices) host.run((e) => e.helpPoll(oneId, 0));
+    else if (h === 'poll') pollMode = !pollMode;
     else host.run((e) => (h === 'ask' ? e.helpAsk(oneId) : e.helpTrust(oneId)));
   }
   const crowdSize = $derived(crowd.length <= 12 ? 50 : crowd.length <= 24 ? 40 : 32);
 
+  // With no student devices the teacher taps the answer most of the class chose.
+  const classTaps = $derived(noDevices && phase === 'PHASE_A' && !view.paused && !!q?.choices);
+
   let nextOne = $state('');
+  let nextName = $state('');
   $effect(() => {
-    if (phase === 'LEADERBOARD') nextOne = s.pendingNextOneId ?? '';
+    if (phase === 'LEADERBOARD') {
+      nextOne = s.pendingNextOneId ?? '';
+      nextName = `Champion ${(game?.ordinal ?? 0) + 1}`;
+    }
   });
+
+  function onkeydown(event: KeyboardEvent) {
+    const key = hostKey(event);
+    if (!key) return;
+    if (key.kind === 'next') {
+      if (!next) return;
+      next.run();
+    } else {
+      const choice = choiceOf(key, q?.choices?.length ?? 0);
+      if (choice === null || !(classTaps || frontTaps)) return;
+      if (classTaps) host.run((e) => e.classAnswer(choice));
+      else tapAnswer(choice);
+    }
+    event.preventDefault();
+  }
 </script>
+
+<svelte:window {onkeydown} />
 
 <div class="arena dark">
   <header class="top">
@@ -119,8 +156,8 @@
       <span></span>
     {/if}
     <div class="tools">
-      {#if host.status !== 'open' && host.status !== 'closed'}<span class="conn" role="status">Reconnecting…</span>{/if}
-      <span class="pin">PIN <strong>{spacedCode(view.code)}</strong></span>
+      {#if !noDevices && host.status !== 'open' && host.status !== 'closed'}<span class="conn" role="status">Reconnecting…</span>{/if}
+      {#if noDevices}<span class="pin">No student devices</span>{:else}<span class="pin">PIN <strong>{spacedCode(view.code)}</strong></span>{/if}
       {#if phase === 'PHASE_A' || phase === 'PHASE_B'}
         <button class="tool" onclick={() => host.run((e) => (view.paused ? e.resume() : e.pause()))} aria-label={view.paused ? 'Resume' : 'Pause'}>
           {view.paused ? '▶' : '❚❚'}
@@ -145,13 +182,18 @@
 
   {#if phase === 'BETWEEN' && game}
     <section class="intro">
-      <SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landedOrdinal = game.ordinal)} />
+      {#if !noDevices}<SpotlightSweep people={everyone} targetId={oneId} onlanded={() => (landedOrdinal = game.ordinal)} />{/if}
       <div class="intro-text" class:show={landed}>
         <h1>{one} takes up the gauntlet!</h1>
-        <p>
-          Everyone else is the class. The class answers first, then {one} answers alone. Each time {one} is right, classmates
-          who missed fall to the Comeback Crew and the Prize Pot grows.
-        </p>
+        {#if noDevices}
+          <p>Everyone else is the class.</p>
+          <ChampionSteps {one} />
+        {:else}
+          <p>
+            Everyone else is the class. The class answers first, then {one} answers alone. Each time {one} is right, classmates
+            who missed fall to the Comeback Crew and the Prize Pot grows.
+          </p>
+        {/if}
       </div>
     </section>
   {:else if phase === 'LEADERBOARD' || phase === 'ENDED'}
@@ -182,7 +224,12 @@
           </li>
         {/each}
       </ol>
-      {#if phase === 'LEADERBOARD'}
+      {#if phase === 'LEADERBOARD' && noDevices}
+        <form class="next-up" onsubmit={(event) => { event.preventDefault(); next?.run(); }}>
+          <span class="label">Next champion</span>
+          <input bind:value={nextName} maxlength="24" aria-label="Next champion’s name" />
+        </form>
+      {:else if phase === 'LEADERBOARD'}
         <div class="next-up">
           <span class="label">Next champion</span>
           {#if view.pendingNextOne}<Avatar name={view.pendingNextOne.nickname} size={40} />{/if}
@@ -205,7 +252,7 @@
           <div>
             <span class="label">Champion</span>
             <strong class="name">{one}</strong>
-            {#if !game.one.connected}<span class="offline">offline</span>{/if}
+            {#if !noDevices && !game.one.connected}<span class="offline">offline</span>{/if}
             <div class="purse">
               <span title="{plural(game.strikes, 'chance')} left">
                 {#each Array.from({ length: Math.max(game.baseStrikes, game.strikes) }, (_, i) => i) as i (i)}
@@ -234,17 +281,52 @@
 
       <div class="vs" aria-hidden="true"><span>VS</span></div>
 
-      <div class="horde" class:lit={crowdLit}>
-        <div class="horde-head">
-          <span><strong>{game.mobCount}</strong> in the class</span>
-          {#if game.crowdCount}<span class="crew-count"><strong>{game.crowdCount}</strong> in the Comeback Crew</span>{/if}
+      {#if noDevices}
+        <div class="horde the-class" class:lit={crowdLit}>
+          <Avatar name="The Class" size={110} />
+          <div>
+            <span class="label">The Class</span>
+            <strong class="name">{classPoints}</strong>
+            <span class="label">points won</span>
+          </div>
         </div>
-        <Crowd people={crowd} size={crowdSize} names={crowd.length <= 24} />
-      </div>
+      {:else}
+        <div class="horde" class:lit={crowdLit}>
+          <div class="horde-head">
+            <span><strong>{game.mobCount}</strong> in the class</span>
+            {#if game.crowdCount}<span class="crew-count"><strong>{game.crowdCount}</strong> in the Comeback Crew</span>{/if}
+          </div>
+          <Crowd people={crowd} size={crowdSize} names={crowd.length <= 24} />
+        </div>
+      {/if}
     </section>
 
     <main class="center">
-      {#if phase === 'PHASE_A' && q}
+      {#if phase === 'PHASE_A' && q?.peeking}
+        <div class="callout">
+          <div class="eyes" aria-hidden="true">👀</div>
+          <div>
+            <h1>{one}, close your eyes or turn around…</h1>
+            <p>No peeking! The class sees the question first.</p>
+          </div>
+        </div>
+      {:else if phase === 'PHASE_A_LOCKED' && noDevices}
+        <div class="callout">
+          <div class="eyes" aria-hidden="true">👀</div>
+          <div><h1>{one}, you can look now!</h1><p>The class has voted. Your turn.</p></div>
+        </div>
+      {:else if phase === 'PHASE_A' && noDevices && q?.choices}
+        <div class="class-head">
+          <h2 class="question"><Rich rich={q.rich?.prompt} text={q.prompt ?? ''} /></h2>
+          <TimerRing {deadline} totalMs={s.settings.timerSeconds * 1000} paused={view.paused} size={110} />
+        </div>
+        <div class="blocks" class:three={q.choices.length === 3}>
+          {#each q.choices as text, i (i)}
+            <AnswerBlock index={i} {text} rich={q.rich?.choices[i]} big onclick={classTaps ? () => host.run((e) => e.classAnswer(i)) : undefined} />
+          {/each}
+        </div>
+        <p class="hint">Class, hands up for your answer! Then tap the answer most of the class chose.</p>
+      {:else if phase === 'PHASE_A' && q}
         <div class="callout">
           <TimerRing {deadline} totalMs={s.settings.timerSeconds * 1000} paused={view.paused} size={150} />
           <div>
@@ -263,7 +345,7 @@
               {text} rich={q.rich?.choices[i]}
               big
               state={blockState(i)}
-              count={q.reveal ? q.reveal.counts[i] : null}
+              count={q.reveal && !noDevices ? q.reveal.counts[i] : null}
               total={q.answered}
               tag={q.oneAnswer === i ? (phase === 'ONE_LOCKED' ? 'Final answer' : one) : ''}
               onclick={frontTaps ? () => tapAnswer(i) : undefined}
@@ -275,7 +357,11 @@
             <p class="news">Poll the Class: tap the answer to ask the class about.</p>
           {:else if q.helpResult}
             <p class="news">
-              {#if q.helpResult.type === 'poll'}
+              {#if q.helpResult.type === 'majority'}
+                <b>Poll the Class:</b> most of the class chose {String.fromCharCode(65 + q.helpResult.choice)}.
+              {:else if q.helpResult.type === 'ask' && noDevices}
+                <b>Ask Two:</b> {one}, choose two classmates to explain their answers out loud.
+              {:else if q.helpResult.type === 'poll'}
                 <b>Poll the Class:</b> {q.helpResult.count} of {q.helpResult.total} in the class chose {String.fromCharCode(65 + q.helpResult.choice)}.
               {:else if q.helpResult.type === 'ask'}
                 <b>Ask Two:</b>
@@ -283,13 +369,22 @@
               {/if}
             </p>
           {:else}
-            <p class="hint">{one}, answer on your device or tap your answer up here.</p>
+            <p class="hint">{noDevices ? `${one}, tap your answer up here.` : `${one}, answer on your device or tap your answer up here.`}</p>
           {/if}
         {:else if phase === 'ONE_LOCKED'}
           <p class="hint drum">Final answer locked in…</p>
         {:else if q.reveal}
           <p class="news verdict" class:good={q.reveal.oneCorrect} class:bad={!q.reveal.oneCorrect}>
-            {#if q.reveal.oneCorrect}
+            {#if noDevices}
+              {@const majority = q.reveal.classMajority}
+              {#if q.reveal.oneCorrect}
+                <b>{one} is right!</b>
+                {majority !== null && majority !== q.reveal.correct ? `${one} beat the class, and the` : 'The'} pot grows by {q.reveal.bankDelta}.
+              {:else}
+                <b>{one} misses!</b> One chance lost.
+              {/if}
+              {#if majority !== null}The class chose {String.fromCharCode(65 + majority)}.{/if}
+            {:else if q.reveal.oneCorrect}
               <b>{one} is right!</b>
               {#if q.reveal.demoted.length}
                 {q.reveal.demoted.map(name).join(', ')} {q.reveal.demoted.length === 1 ? 'falls' : 'fall'} to the Comeback Crew, and the pot grows by {q.reveal.bankDelta}.
@@ -311,7 +406,7 @@
         <div class="scroll">
           <span class="label">Round over</span>
           <h2>{endHeadline(game.result.reason, one, game.result.bankedByOne)}</h2>
-          <p>{endDetail(game.result.reason, one, game.result.payouts.filter((p) => p.playerId !== oneId).length)}</p>
+          <p>{endDetail(game.result.reason, one, game.result.payouts.filter((p) => p.playerId !== oneId).length, noDevices)}</p>
           <div class="payouts">
             {#each game.result.payouts.slice(0, 12) as p (p.playerId)}<span>{name(p.playerId)} +{p.points}</span>{/each}
           </div>
@@ -638,6 +733,39 @@
     align-items: center;
     justify-content: center;
     gap: 2rem;
+  }
+  .eyes {
+    font-size: clamp(4rem, 9vw, 7rem);
+    line-height: 1;
+  }
+  .class-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .class-head .question {
+    flex: 1;
+  }
+  .the-class {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  .the-class .name {
+    display: block;
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(2.2rem, 3.6vw, 3.4rem);
+  }
+  .next-up input {
+    font: inherit;
+    font-weight: 700;
+    font-size: 1.15rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    border: none;
   }
   .callout p {
     font-size: 1.25rem;

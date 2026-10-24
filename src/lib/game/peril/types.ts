@@ -115,6 +115,8 @@ export type PerilSession = {
   version: 1;
   code: string;
   createdAt: number;
+  /** Played with no student devices: Teams with no members, and the teacher taps who buzzed and what they answered. */
+  noDevices?: boolean;
   settings: PerilSettings;
   players: PerilPlayer[];
   /** Empty in Solo. */

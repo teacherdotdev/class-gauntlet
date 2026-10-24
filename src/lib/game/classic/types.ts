@@ -43,6 +43,8 @@ export type ClassicSession = {
   version: 1;
   code: string;
   createdAt: number;
+  /** Played with no student devices: a class review with nobody joined, paced by the teacher. */
+  noDevices?: boolean;
   title: string;
   settings: ClassicSettings;
   /** In the order they're asked. */
